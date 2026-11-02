@@ -203,6 +203,27 @@ DISMISS_JS = r"""
 """
 
 
+# Which account is signed in? Collect email addresses, weighted by where they appear.
+ACCOUNT_JS = r"""
+() => {
+  const re = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,24}/g;
+  const out = [];
+  const add = (s, w) => { for (const m of (s || '').matchAll(re)) out.push([m[0].toLowerCase(), w]); };
+  add(document.title, 6);
+  document.querySelectorAll('[aria-label*="@"],[title*="@"],[data-email],[data-hovercard-id*="@"]').forEach(e => {
+    add(e.getAttribute('aria-label'), 3); add(e.getAttribute('title'), 3);
+    add(e.getAttribute('data-email'), 4); add(e.getAttribute('data-hovercard-id'), 2);
+  });
+  add((document.body?.innerText || '').slice(0, 20000), 1);
+  return out;
+}
+"""
+NOT_ACCOUNT = re.compile(
+    r"^(no-?reply|do-?not-?reply|support|help|info|privacy|abuse|security|sales|contact|feedback|hello|team)@"
+    r"|\.(png|jpe?g|gif|svg|webp|ico|js|css)$"
+)
+
+
 def host_allowed(url: str, allowed: list[str]) -> bool:
     if not allowed:
         return True
@@ -253,6 +274,11 @@ class PendingLogin:
     watcher: asyncio.Task | None = None
     finishing: bool = False
     finished: asyncio.Event = field(default_factory=asyncio.Event)
+    auto_name: bool = False  # no name given: name it after the signed-in account
+    accounts: dict[str, float] = field(default_factory=dict)  # email -> score
+
+    def account(self) -> str | None:
+        return max(self.accounts, key=self.accounts.get) if self.accounts else None
 
     def state(self) -> dict:
         return {
@@ -291,16 +317,22 @@ class BrowserManager:
 
     # ---------- login (headed, user-driven) ----------
 
+    def _temp_name(self, url: str) -> str:
+        return f"{_base_domain(url) or 'site'}-new-{secrets.token_hex(2)}"
+
     async def start_login(
         self,
-        profile: str,
+        profile: str | None,
         url: str,
         allowed_domains: list[str],
         read_only: bool | None = None,
         handoff: bool = False,
     ) -> str:
         """Open a visible window for the user. handoff=True continues an agent session (CAPTCHA, 2FA,
-        expired login) and keeps the profile's settings; the agent's session picks up the result."""
+        expired login) and keeps the profile's settings; the agent's session picks up the result.
+        With no profile name, the login is named after the account that signs in (e.g. its email)."""
+        auto_name = not profile
+        profile = profile or self._temp_name(url)
         self.vault._path(profile)  # validates name early
         old = self.logins.get(profile)
         if old and not old.done.is_set() and old.context.pages:
@@ -327,6 +359,7 @@ class BrowserManager:
             meta = {
                 **{k: v for k, v in old_meta.items() if k in ("created_at", "read_only")},
                 "start_url": url,
+                "site": _base_domain(url),
                 "allowed_domains": allowed_domains or old_meta.get("allowed_domains") or [_base_domain(url)],
                 # The agent's headless browser reuses this fingerprint, so the site sees the same "device".
                 "user_agent": fp[0].replace("HeadlessChrome", "Chrome"),
@@ -336,6 +369,7 @@ class BrowserManager:
         if read_only is not None:
             meta["read_only"] = read_only
         login = PendingLogin(profile, browser, context, meta, initial_cookies=len(state["cookies"]) if state else 0)
+        login.auto_name = auto_name
         if state:
             login.local_storage = {o["origin"]: o.get("localStorage", []) for o in state.get("origins", [])}
         self.logins[profile] = login
@@ -358,6 +392,7 @@ class BrowserManager:
         return (
             f"A browser window is open at {url}. Log in there (including any 2FA). "
             f"When you're done, close the window or call complete_login('{profile}')."
+            + (" The login will be renamed after the account that signs in." if auto_name else "")
         )
 
     async def _backup(self, login: PendingLogin) -> None:
@@ -373,8 +408,15 @@ class BrowserManager:
                 )
                 if origin.startswith("http"):
                     login.local_storage[origin] = items
+                hits = await p.evaluate(ACCOUNT_JS)
             except Exception:
-                pass
+                continue
+            seen: dict[str, float] = {}
+            for email, weight in hits:
+                if not NOT_ACCOUNT.search(email):
+                    seen[email] = max(seen.get(email, 0), weight)
+            for email, score in seen.items():  # latest view counts most; decays older guesses
+                login.accounts[email] = login.accounts.get(email, 0) * 0.9 + score
 
     async def _watch_login(self, login: PendingLogin) -> None:
         while not login.done.is_set():
@@ -406,18 +448,38 @@ class BrowserManager:
         elif not state["cookies"]:
             login.error = "No cookies were captured, so nothing was saved. Run the login again."
         else:
+            account = login.account()
+            note = ""
+            if account:
+                if login.meta.get("account") and login.meta["account"] != account:
+                    note = f" Note: it's now signed in as {account} (it was {login.meta['account']})."
+                login.meta["account"] = account
+            if login.auto_name:
+                login.profile = self._final_name(account, login.meta.get("site") or "site")
             try:
                 _, old_meta = self.vault.load(login.profile)
                 login.meta["created_at"] = old_meta.get("created_at")
             except VaultError:
                 pass
             self.vault.save(login.profile, state, login.meta)
-            login.result = f"Saved encrypted session {login.profile!r} ({len(state['cookies'])} cookies)."
+            who = f" for {account}" if account else ""
+            login.result = f"Saved encrypted session {login.profile!r}{who} ({len(state['cookies'])} cookies).{note}"
             await self._refresh_sessions(login.profile, state)
         try:
             await login.browser.close()
         except Exception:
             pass
+
+    def _final_name(self, account: str | None, site: str) -> str:
+        """The account's email (re-login of the same account overwrites it), else site-1, site-2, ..."""
+        if account:
+            name = re.sub(r"[^a-zA-Z0-9_.@+-]", "-", account)[:64].strip("-.")
+            if name and self.vault._path(name):
+                return name
+        n = 1
+        while self.vault.exists(f"{site}-{n}"):
+            n += 1
+        return f"{site}-{n}"
 
     async def _refresh_sessions(self, profile: str, state: dict) -> None:
         """After the user logs in again (or solves a CAPTCHA), hand the new cookies to open agent sessions."""
@@ -433,8 +495,10 @@ class BrowserManager:
             except Exception as e:
                 s.events.append(f"Couldn't refresh this session with the new login ({e}); open a new session.")
 
-    async def complete_login(self, profile: str) -> str:
-        login = self.logins.pop(profile, None)
+    async def complete_login(self, profile: str | None = None) -> str:
+        if profile is None and len(self.logins) == 1:
+            profile = next(iter(self.logins))
+        login = self.logins.pop(profile, None) if profile else None
         if login is None:
             raise VaultError(f"No login in progress for {profile!r}. Call start_login first.")
         await self._finish_login(login, save=True, final_backup=True)
@@ -461,7 +525,38 @@ class BrowserManager:
 
     # ---------- agent sessions (headless) ----------
 
+    def profiles(self, site: str | None = None) -> list[dict]:
+        return self.vault.list(site)
+
+    def resolve(self, profile: str) -> str:
+        """Accept a profile name, or the email of the account it's signed in to."""
+        saved = self.vault.list()
+        want = profile.lower()
+        for match in (
+            lambda p: p.get("name") == profile,
+            lambda p: (p.get("name") or "").lower() == want,  # file names ignore case on macOS/Windows
+            lambda p: (p.get("account") or "").lower() == want,
+        ):
+            hits = [p["name"] for p in saved if match(p)]
+            if len(hits) == 1:
+                return hits[0]
+        raise VaultError(f"No saved session named {profile!r}. Call list_profiles to see them, or log in first.")
+
+    async def open_many(self, names: list[str]) -> list[tuple[str, Session | None, str]]:
+        """Open several logins side by side. Returns (profile, session or None, error)."""
+
+        async def one(i: int, name: str):
+            if human.enabled():  # don't hit the site with every account in the same instant
+                await asyncio.sleep(i * random.uniform(0.8, 2.0))
+            try:
+                return name, await self.open_session(name), ""
+            except Exception as e:
+                return name, None, str(e).split("\nCall log:")[0]
+
+        return list(await asyncio.gather(*(one(i, n) for i, n in enumerate(names))))
+
     async def open_session(self, profile: str) -> Session:
+        profile = self.resolve(profile)
         state, meta = self.vault.load(profile)
         browser = await self._headless_browser()
         context = await browser.new_context(

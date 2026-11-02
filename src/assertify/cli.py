@@ -10,12 +10,13 @@ import sys
 from .vault import Vault, VaultError
 
 
-async def _login(profile: str, url: str, domains: list[str], read_only: bool) -> None:
+async def _login(profile: str | None, url: str, domains: list[str], read_only: bool) -> None:
     from .browser import BrowserManager
 
     m = BrowserManager()
     try:
         await m.start_login(profile, url, domains, read_only=read_only)
+        profile = next(iter(m.logins))
         print(f"A browser window is open at {url}. Log in there (including any 2FA).")
         print("When you're done, close the browser window or press Enter here.")
         closed = asyncio.create_task(m.logins[profile].done.wait())
@@ -47,13 +48,16 @@ def main() -> None:
     sub.add_parser("setup", help="One-time setup: install the browser, check encryption, show how to connect")
     sub.add_parser("serve", help="Run the MCP server over stdio (default)")
     lg = sub.add_parser("login", help="Log in to a site in a visible browser and save the session")
-    lg.add_argument("profile")
-    lg.add_argument("url")
+    lg.add_argument("args", nargs="+", metavar="[name] url", help="Name is optional: defaults to the account's email")
     lg.add_argument("--domain", action="append", default=[], help="Allowed domain (repeatable)")
     lg.add_argument(
         "--read-only", action="store_true", help="Agents may browse and read, but never type, submit, send or buy"
     )
-    sub.add_parser("list", help="List saved sessions")
+    ls = sub.add_parser("list", help="List saved sessions")
+    ls.add_argument("site", nargs="?", help="Only this site's logins")
+    rn = sub.add_parser("rename", help="Rename a saved session")
+    rn.add_argument("profile")
+    rn.add_argument("new_name")
     dl = sub.add_parser("delete", help="Delete a saved session")
     dl.add_argument("profile")
     args = p.parse_args()
@@ -68,9 +72,15 @@ def main() -> None:
 
             sys.exit(setup())
         elif args.cmd == "login":
-            asyncio.run(_login(args.profile, args.url, args.domain, args.read_only))
+            if len(args.args) > 2:
+                p.error("login takes [name] url")
+            name, url = (None, args.args[0]) if len(args.args) == 1 else args.args
+            asyncio.run(_login(name, url, args.domain, args.read_only))
         elif args.cmd == "list":
-            print(json.dumps(Vault().list(), indent=2, default=str))
+            print(json.dumps(Vault().list(args.site), indent=2, default=str))
+        elif args.cmd == "rename":
+            Vault().rename(args.profile, args.new_name)
+            print(f"Renamed to {args.new_name!r}.")
         elif args.cmd == "delete":
             print("Deleted." if Vault().delete(args.profile) else "No such profile.")
     except VaultError as e:

@@ -37,7 +37,9 @@ mcp = MCPServer(
     icons=[Icon(src=f"data:image/png;base64,{_ICON}", mime_type="image/png", sizes=["128x128"])],
     lifespan=lifespan,
     instructions=(
-        "Use websites through the user's saved logins. Flow: list_profiles -> open_session -> "
+        "Use websites through the user's saved logins. A site can have several accounts (e.g. five "
+        "Gmail logins, named after their emails): pick one with open_session, or open all of a site's "
+        "accounts with open_sessions. Flow: list_profiles -> open_session -> "
         "snapshot -> click/type_text/... using [eN] refs from the latest snapshot (or the element's "
         "visible text) -> close_session. Refs change after every snapshot. "
         "Pop-ups are listed first under '## Pop-up': handle them by what the user asked for, or call "
@@ -112,31 +114,45 @@ async def _after(sid: str, note: str) -> Result:
 
 
 @tool(read_only=True)
-async def list_profiles() -> list[dict]:
-    """List saved website logins (name, start URL, allowed domains, read-only, last updated)."""
-    return manager.vault.list()
+async def list_profiles(site: str | None = None) -> list[dict]:
+    """List saved website logins: name, account (e.g. the email), site, allowed domains, read-only.
+
+    site: only logins for this site, e.g. "google.com" or "linkedin". A site can have several accounts.
+    """
+    return manager.profiles(site)
 
 
 @tool
 async def start_login(
-    profile: str, url: str, allowed_domains: list[str] | None = None, read_only: bool | None = None
+    url: str, profile: str | None = None, allowed_domains: list[str] | None = None, read_only: bool | None = None
 ) -> str:
     """Open a visible browser window so the USER can log in to a site by hand.
 
-    profile: short name to save it under, e.g. "github".
     url: the site's login page or home page.
+    profile: name to save it under, e.g. "work-gmail". Leave empty to name it after the account that
+      signs in (its email when the site shows one). Log in again with no name to add another account
+      for the same site.
     allowed_domains: domains agents may navigate to with this session
       (defaults to the url's base domain, e.g. ["github.com"]).
     read_only: agents can browse and read with this profile but never type, submit, send or buy.
     The agent never sees the password. Call complete_login once the user says they're done.
     """
-    return await manager.start_login(profile, url, allowed_domains or [], read_only=read_only)
+    return await manager.start_login(profile or None, url, allowed_domains or [], read_only=read_only)
 
 
 @tool
-async def complete_login(profile: str) -> str:
-    """Save the logged-in session from the login window (encrypted) and close the window."""
+async def complete_login(profile: str | None = None) -> str:
+    """Save the logged-in session from the login window (encrypted) and close the window.
+
+    profile: the name start_login used (optional when only one login window is open)."""
     return await manager.complete_login(profile)
+
+
+@tool
+async def rename_profile(profile: str, new_name: str) -> str:
+    """Rename a saved login, e.g. "google.com-1" -> "work"."""
+    manager.vault.rename(manager.resolve(profile), new_name)
+    return f"Renamed to {new_name!r}."
 
 
 @tool(destructive=True)
@@ -167,6 +183,38 @@ async def open_session(profile: str, url: str | None = None, screenshots: bool |
             "small and personal; don't scrape or mass-message."
         )
     return await _after(s.id, note)
+
+
+@tool
+async def open_sessions(site: str | None = None, profiles: list[str] | None = None, url: str | None = None) -> str:
+    """Open several logins at once, e.g. every saved Gmail account, each in its own browser.
+
+    site: open every saved login for this site (e.g. "google.com"), or
+    profiles: the names (or account emails) to open.
+    url: page to open in each (optional). Returns one session_id per account; use them with the other
+    tools as usual (you can work on them in parallel) and close each one when done.
+    """
+    names = [manager.resolve(p) for p in profiles] if profiles else [p["name"] for p in manager.profiles(site)]
+    if not names:
+        return f"No saved logins for {site!r}." if site else "Pass a site or a list of profiles."
+    lines, strict = [], None
+    for name, s, err in await manager.open_many(names):
+        if s is None:
+            lines.append(f"- {name}: failed: {err}")
+            continue
+        strict = strict or s.site
+        s.screenshots = os.environ.get("ASSERTIFY_SCREENSHOTS") == "1"
+        if url:
+            try:
+                await manager.goto(s, url)
+            except Exception as e:
+                lines.append(f"- {name}: session_id {s.id}, but opening {url} failed: {e}")
+                continue
+        who = s.meta.get("account") or name
+        lines.append(f"- {who}: session_id {s.id} | {await s.active.title()} | {s.active.url}")
+    head = f"Opened {sum('session_id' in ln for ln in lines)} of {len(names)} sessions:"
+    tail = f"\n{strict} restricts automation: don't run the same action on many accounts at once." if strict else ""
+    return "\n".join([head, *lines]) + tail + "\nCall snapshot on a session_id to see its page."
 
 
 @tool

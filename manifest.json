@@ -42,7 +42,7 @@
   "tools": [
     {
       "name": "list_profiles",
-      "description": "List saved website logins (name, start URL, allowed domains, read-only, last updated)."
+      "description": "List saved website logins: name, account (e.g. the email), site, allowed domains, read-only."
     },
     {
       "name": "start_login",
@@ -53,12 +53,20 @@
       "description": "Save the logged-in session from the login window (encrypted) and close the window."
     },
     {
+      "name": "rename_profile",
+      "description": "Rename a saved login, e.g. \"google.com-1\" -> \"work\"."
+    },
+    {
       "name": "delete_profile",
       "description": "Delete a saved login from disk."
     },
     {
       "name": "open_session",
       "description": "Open a headless browser already logged in as the saved profile. Returns a session id and page snapshot."
+    },
+    {
+      "name": "open_sessions",
+      "description": "Open several logins at once, e.g. every saved Gmail account, each in its own browser."
     },
     {
       "name": "close_session",

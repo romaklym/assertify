@@ -28,7 +28,7 @@ from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 MAGIC = b"AS1"
 KEYRING_SERVICE = "assertify-mcp"
 KEYRING_USER = "master-key"
-NAME_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}$")
+NAME_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_.@+-]{0,63}$")  # emails work as names
 
 
 class VaultError(Exception):
@@ -78,7 +78,7 @@ class Vault:
 
     def _path(self, name: str) -> Path:
         if not NAME_RE.match(name):
-            raise VaultError(f"Invalid profile name {name!r}: use letters, digits, '_', '-', '.' (max 64).")
+            raise VaultError(f"Invalid profile name {name!r}: use letters, digits, '_', '-', '.', '@', '+' (max 64).")
         return self.dir / f"{name}.enc"
 
     def save(self, name: str, state: dict, meta: dict[str, Any]) -> None:
@@ -108,7 +108,8 @@ class Vault:
             raise VaultError(f"Could not decrypt {name!r} (wrong key/passphrase or file tampered).") from e
         return data["state"], data["meta"]
 
-    def list(self) -> list[dict]:
+    def list(self, site: str | None = None) -> list[dict]:
+        """All saved logins, or only those for one site ("google.com", "gmail", "linkedin")."""
         out = []
         for p in sorted(self.dir.glob("*.enc")):
             try:
@@ -117,7 +118,22 @@ class Vault:
             except VaultError as e:
                 meta = {"name": p.stem, "error": str(e)}
             out.append(meta)
+        if site:
+            out = [m for m in out if _matches_site(m, site)]
         return out
+
+    def exists(self, name: str) -> bool:
+        return self._path(name).exists()
+
+    def rename(self, old: str, new: str, overwrite: bool = False) -> None:
+        """Re-encrypt under the new name (the name is bound into the ciphertext)."""
+        if old == new:
+            return
+        if self.exists(new) and not overwrite:
+            raise VaultError(f"A profile named {new!r} already exists.")
+        state, meta = self.load(old)
+        self.save(new, state, meta)
+        self.delete(old)
 
     def delete(self, name: str) -> bool:
         path = self._path(name)
@@ -125,3 +141,11 @@ class Vault:
             path.unlink()
             return True
         return False
+
+
+def _matches_site(meta: dict, site: str) -> bool:
+    q = site.lower().removeprefix("https://").removeprefix("http://").removeprefix("www.").strip("/")
+    for d in [meta.get("site") or "", *(meta.get("allowed_domains") or [])]:
+        if d and (q == d or d.endswith("." + q) or q.endswith("." + d) or q in d.split(".")):
+            return True
+    return q in (meta.get("start_url") or "")

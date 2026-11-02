@@ -35,6 +35,7 @@ Most sites have no API, or one that can't do what you need. Assertify gives your
 - 🤖 **Works with every MCP client.** Claude Code, Claude Desktop, Codex, Cursor, VS Code, Gemini CLI, Grok, Windsurf…
 - 👀 **See what the agent sees.** Every step can come with a screenshot, shown in the chat and saved to disk.
 - 🛡️ **Fenced in.** Each login is locked to its own domains, so a prompt injection on a page can't walk your logged-in browser somewhere else.
+- 👥 **Many accounts per site.** Five Gmail accounts? Log in to each; they're named after their emails. Use one, or open them all at once.
 - ✋ **Asks before it acts.** Buttons that send, post, buy, delete or connect are paused until you say yes. Logins can be made read-only.
 - 🧍 **Behaves like a person.** Real Chrome, your own browser fingerprint, curved mouse moves, uneven typing and natural pauses. No `navigator.webdriver` flag.
 - 🪟 **Handles pop-ups.** Cookie banners are declined for you; "share your contact info" style pop-ups are flagged so the agent decides, or closes them.
@@ -178,10 +179,11 @@ For JSON configs, use the `mcpServers` block shown under Cursor.
 
 | Tool | What it does |
 |---|---|
-| `list_profiles` | Your saved logins |
-| `start_login` / `complete_login` | Open a window for **you** to log in, then encrypt and save the session |
-| `delete_profile` | Remove a saved login |
+| `list_profiles(site?)` | Your saved logins (name, account email, site), optionally only one site's |
+| `start_login(url, profile?)` / `complete_login` | Open a window for **you** to log in, then encrypt and save the session. No name: it's named after the account's email |
+| `rename_profile` · `delete_profile` | Rename or remove a saved login |
 | `open_session(profile, url?, screenshots?)` | Start a logged-in headless browser; returns a `session_id` and a page outline |
+| `open_sessions(site? \| profiles?)` | Open several logins at once (e.g. every Gmail account), one `session_id` each |
 | `snapshot` | URL, title and interactive elements as `[e12] button "Save"`; pop-ups first, warnings for CAPTCHAs and sign-in pages |
 | `find(query)` | Search the whole page for elements by label |
 | `click` · `type_text` · `select_option` · `press_key` · `scroll` · `back` · `navigate` · `wait_for` | Act by ref **or by visible text** (`click(text="Messages")`), so small redesigns don't break a flow; each returns a fresh outline |
@@ -197,6 +199,25 @@ For JSON configs, use the `mcpServers` block shown under Cursor.
 ### 👀 Seeing what the agent sees
 
 Ask *"show me a screenshot"* or *"open my GitHub session with screenshots on so I can follow along"*. Images appear in the chat in clients that show them, and every one is saved to `~/.assertify-mcp/screenshots/<session>/NNN-<step>.jpg`. The folder is private to you and cleared after 7 days.
+
+## 👥 Several accounts on one site
+
+Log in once per account. Leave the name out and Assertify names each login after the email address it finds on the page (falls back to `google.com-1`, `google.com-2`… when a site doesn't show one):
+
+```bash
+assertify login https://mail.google.com   # sign in as you@gmail.com   -> saved as "you@gmail.com"
+assertify login https://mail.google.com   # sign in as work@gmail.com  -> saved as "work@gmail.com"
+assertify login work https://mail.google.com   # or pick the name yourself
+assertify list google.com                 # just the Google logins
+assertify rename google.com-1 side-project
+```
+
+Then just ask:
+
+- *"Check my work@gmail.com inbox"*: the agent opens that one login.
+- *"Any unread mail in any of my Gmail accounts?"*: the agent calls `open_sessions(site="google.com")` and gets one session per account, which it can work through side by side.
+
+Each account lives in its own encrypted file and its own isolated browser, so cookies never mix. On sites that restrict automation, avoid running the same action on many accounts at once.
 
 ## 🧍 Staying unnoticed
 
@@ -252,7 +273,7 @@ Found a vulnerability? See [SECURITY.md](SECURITY.md).
 | `ASSERTIFY_MAX_PAGES_PER_HOUR` | Page-load cap per login (default 400; 60 on strict sites) |
 | `ASSERTIFY_AUTO_CONSENT=0` | Don't auto-decline cookie banners |
 
-CLI: `assertify setup | login <name> <url> [--domain d] [--read-only] | list | delete <name> | serve`.
+CLI: `assertify setup | login [name] <url> [--domain d] [--read-only] | list [site] | rename <name> <new> | delete <name> | serve`.
 
 ## ❓ FAQ
 
