@@ -1,4 +1,5 @@
 import stat
+import sys
 
 import pytest
 
@@ -21,8 +22,9 @@ def test_file_is_encrypted_and_private(isolated_vault):
     path = isolated_vault / "profiles" / "example.enc"
     data = path.read_bytes()
     assert b"session_token" not in data and b"s3cret" not in data
-    assert stat.S_IMODE(path.stat().st_mode) == 0o600
-    assert stat.S_IMODE(path.parent.stat().st_mode) == 0o700
+    if sys.platform != "win32":  # Windows has no Unix modes; the user folder's own access rules apply
+        assert stat.S_IMODE(path.stat().st_mode) == 0o600
+        assert stat.S_IMODE(path.parent.stat().st_mode) == 0o700
 
 
 def test_wrong_passphrase_is_rejected(monkeypatch):
