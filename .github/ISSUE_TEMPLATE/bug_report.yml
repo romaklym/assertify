@@ -1,0 +1,29 @@
+name: Bug report
+description: Something doesn't work
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "Please don't paste cookies, tokens, session files or screenshots of your private accounts."
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you asked the agent, what it did, and what you expected.
+    validations:
+      required: true
+  - type: input
+    id: site
+    attributes:
+      label: Website (if site-specific)
+      placeholder: e.g. linkedin.com
+  - type: input
+    id: client
+    attributes:
+      label: AI client
+      placeholder: e.g. Claude Code, Codex, Cursor
+  - type: input
+    id: os
+    attributes:
+      label: OS and Assertify version
+      placeholder: e.g. macOS 26, 0.1.0

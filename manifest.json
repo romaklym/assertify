@@ -1,0 +1,144 @@
+{
+  "$schema": "https://raw.githubusercontent.com/modelcontextprotocol/mcpb/main/schemas/mcpb-manifest-v0.4.schema.json",
+  "manifest_version": "0.4",
+  "name": "assertify",
+  "display_name": "Assertify",
+  "version": "0.1.0",
+  "description": "Let Claude use any website you're logged in to. Log in once; the session stays encrypted on your machine.",
+  "long_description": "Assertify gives Claude a real browser that is already logged in as you. You sign in once in a normal browser window (2FA, passkeys and SSO all work), and the session is saved AES-256-GCM encrypted with a key in your OS keychain. Claude can then open headless, logged-in sessions to read, click, type and take screenshots. Each login is locked to its own domains. Nothing is uploaded anywhere: there is no server, no account and no telemetry.",
+  "author": {
+    "name": "Roman Klym",
+    "url": "https://github.com/romaklym"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/romaklym/assertify-mcp"
+  },
+  "homepage": "https://github.com/romaklym/assertify-mcp",
+  "documentation": "https://github.com/romaklym/assertify-mcp#readme",
+  "support": "https://github.com/romaklym/assertify-mcp/issues",
+  "icon": "assets/icon.png",
+  "icons": [
+    {
+      "src": "assets/icon.png",
+      "size": "256x256"
+    }
+  ],
+  "server": {
+    "type": "uv",
+    "entry_point": "src/assertify/__main__.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "${__dirname}",
+        "--no-dev",
+        "assertify",
+        "serve"
+      ]
+    }
+  },
+  "tools": [
+    {
+      "name": "list_profiles",
+      "description": "List saved website logins (name, start URL, allowed domains, last updated)."
+    },
+    {
+      "name": "start_login",
+      "description": "Open a visible browser window so the USER can log in to a site by hand."
+    },
+    {
+      "name": "complete_login",
+      "description": "Save the logged-in session from the login window (encrypted) and close the window."
+    },
+    {
+      "name": "delete_profile",
+      "description": "Delete a saved login from disk."
+    },
+    {
+      "name": "open_session",
+      "description": "Open a headless browser already logged in as the saved profile. Returns a session id and page snapshot."
+    },
+    {
+      "name": "close_session",
+      "description": "Close a session. With save=True (default), refreshed cookies are written back to the vault."
+    },
+    {
+      "name": "save_session",
+      "description": "Write the session's current cookies/storage back to the encrypted vault."
+    },
+    {
+      "name": "snapshot",
+      "description": "Current URL, title and a list of interactive elements with [eN] refs to use in other tools."
+    },
+    {
+      "name": "navigate",
+      "description": "Go to a URL (must be within the profile's allowed domains)."
+    },
+    {
+      "name": "back",
+      "description": "Browser back button."
+    },
+    {
+      "name": "click",
+      "description": "Click the element with the given ref (e.g. \"e12\") from the latest snapshot."
+    },
+    {
+      "name": "type_text",
+      "description": "Replace the contents of a text field with `text`. submit=True presses Enter afterwards."
+    },
+    {
+      "name": "select_option",
+      "description": "Choose an option (by visible label or value) in a <select> element."
+    },
+    {
+      "name": "press_key",
+      "description": "Press a key on the page, e.g. \"Enter\", \"Escape\", \"Tab\", \"Control+A\"."
+    },
+    {
+      "name": "scroll",
+      "description": "Scroll the page \"up\" or \"down\" by `amount` pixels (lazy-loaded content appears in the next snapshot)."
+    },
+    {
+      "name": "wait_for",
+      "description": "Wait until `text` appears on the page (up to 15s), or just wait `seconds`."
+    },
+    {
+      "name": "read_text",
+      "description": "Return the visible text of the page (for reading content, tables, messages, etc.)."
+    },
+    {
+      "name": "screenshot",
+      "description": "Screenshot the current page, or just one element (ref from the latest snapshot)."
+    },
+    {
+      "name": "set_screenshots",
+      "description": "Turn per-step screenshots on or off for a session (each action then returns a screenshot)."
+    },
+    {
+      "name": "switch_tab",
+      "description": "Make tab `index` (0-based) the active tab. New tabs/popups become active automatically."
+    }
+  ],
+  "keywords": [
+    "browser",
+    "login",
+    "session",
+    "playwright",
+    "automation",
+    "web",
+    "screenshots"
+  ],
+  "license": "MIT",
+  "compatibility": {
+    "platforms": [
+      "darwin",
+      "linux",
+      "win32"
+    ],
+    "runtimes": {
+      "python": ">=3.10"
+    }
+  }
+}

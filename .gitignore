@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+dist/
+build/
+*.egg-info/
+*.mcpb
+.DS_Store
+# never commit saved sessions or screenshots
+*.enc
+screenshots/
