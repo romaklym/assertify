@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.1 (2026-11-02)
 
 - Windows: pressing Enter now finishes `assertify login` (it used to wait for the window to close), and the CLI no longer crashes on consoles that aren't UTF-8.
 - macOS/Windows: renaming a profile when only the letter case changes (`Work` → `work`) no longer deletes it.
