@@ -8,6 +8,7 @@ import random
 import re
 import secrets
 import shutil
+import sys
 import time
 from dataclasses import dataclass, field
 from urllib.parse import urlparse
@@ -345,6 +346,11 @@ class BrowserManager:
             state, old_meta = self.vault.load(profile)  # re-login on top of an existing session
         except VaultError:
             state, old_meta = None, {}
+        if sys.platform.startswith("linux") and not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
+            raise VaultError(
+                "No screen to show the login window on (no DISPLAY). Log in on a desktop machine, or over SSH "
+                "with `ssh -X`, or run under `xvfb-run` and use a VNC viewer."
+            )
         pw = await self._playwright()
         browser = await launch(pw, headless=False, args=LAUNCH_ARGS)
         context = await browser.new_context(viewport=VIEWPORT, storage_state=state)

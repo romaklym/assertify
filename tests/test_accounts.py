@@ -86,3 +86,12 @@ async def _open_all(url: str) -> None:
 
 def test_open_all_accounts_of_a_site(site):  # noqa: F811
     asyncio.run(asyncio.wait_for(_open_all(site), timeout=90))
+
+
+def test_case_only_rename_keeps_the_session():
+    """macOS and Windows ignore case in file names, so Work -> work must not delete the file."""
+    v = Vault()
+    v.save("Work", {"cookies": [], "origins": []}, {"start_url": "https://mail.google.com/"})
+    v.rename("Work", "work")
+    assert [m["name"] for m in v.list()] == ["work"]
+    assert v.load("work")[1]["start_url"] == "https://mail.google.com/"

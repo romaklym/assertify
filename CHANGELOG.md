@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Windows: pressing Enter now finishes `assertify login` (it used to wait for the window to close), and the CLI no longer crashes on consoles that aren't UTF-8.
+- macOS/Windows: renaming a profile when only the letter case changes (`Work` → `work`) no longer deletes it.
+- Linux: a clear message when there's no screen for the login window.
+- CI now tests Windows too. README diagram shows multiple accounts.
+
 ## 0.3.0 (2026-11-02)
 
 - Several accounts per site: log in without a name and the login is named after the account's email; `list_profiles(site)` / `assertify list <site>`; new `open_sessions` opens every account of a site (or a list) at once; `open_session` also accepts the account email; new `rename_profile` / `assertify rename`.

@@ -129,11 +129,15 @@ class Vault:
         """Re-encrypt under the new name (the name is bound into the ciphertext)."""
         if old == new:
             return
-        if self.exists(new) and not overwrite:
+        case_only = old.lower() == new.lower()  # same file on macOS/Windows, which ignore case
+        if not case_only and self.exists(new) and not overwrite:
             raise VaultError(f"A profile named {new!r} already exists.")
         state, meta = self.load(old)
+        if case_only:
+            self.delete(old)
         self.save(new, state, meta)
-        self.delete(old)
+        if not case_only:
+            self.delete(old)
 
     def delete(self, name: str) -> bool:
         path = self._path(name)

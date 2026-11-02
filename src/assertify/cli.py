@@ -6,6 +6,7 @@ import argparse
 import asyncio
 import json
 import sys
+import threading
 
 from .vault import Vault, VaultError
 
@@ -29,13 +30,27 @@ async def _login(profile: str | None, url: str, domains: list[str], read_only: b
 
 
 async def _wait_for_enter() -> None:
-    """Wait for Enter without a blocking thread, so closing the window can end the command."""
+    """Wait for Enter while still letting a closed window end the command."""
     loop = asyncio.get_running_loop()
     fut = loop.create_future()
+
+    def done() -> None:
+        if not fut.done():
+            fut.set_result(None)
+
     try:
-        loop.add_reader(sys.stdin, lambda: fut.done() or (sys.stdin.readline(), fut.set_result(None)))
-    except (NotImplementedError, ValueError):  # Windows / no stdin: rely on closing the window
-        return await asyncio.Event().wait()
+        loop.add_reader(sys.stdin, lambda: (sys.stdin.readline(), done()))
+    except (NotImplementedError, ValueError, OSError):
+        # Windows has no add_reader: read in a daemon thread, which can't keep the process alive.
+        def read() -> None:
+            try:
+                sys.stdin.readline()
+            except Exception:
+                return
+            loop.call_soon_threadsafe(done)
+
+        threading.Thread(target=read, daemon=True).start()
+        return await fut
     try:
         await fut
     finally:
@@ -61,6 +76,11 @@ def main() -> None:
     dl = sub.add_parser("delete", help="Delete a saved session")
     dl.add_argument("profile")
     args = p.parse_args()
+    if args.cmd not in (None, "serve"):
+        # Windows consoles may not be UTF-8; never crash on a ✓ or an emoji in a page title.
+        for stream in (sys.stdout, sys.stderr):
+            if hasattr(stream, "reconfigure"):
+                stream.reconfigure(errors="replace")
 
     try:
         if args.cmd in (None, "serve"):

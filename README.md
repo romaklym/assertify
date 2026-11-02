@@ -46,20 +46,47 @@ Most sites have no API, or one that can't do what you need. Assertify gives your
 
 ```mermaid
 flowchart LR
-    U([You]) -- "log in once<br/>(visible window)" --> L[Login browser]
-    L -- cookies + storage --> V[(Encrypted vault<br/>~/.assertify-mcp)]
-    K[[OS keychain]] -. key .-> V
-    A([AI agent]) -- MCP tools --> S[Assertify server]
-    V -- decrypt --> S
-    S -- drives --> H[Headless browser<br/>already logged in]
-    H -- outline + screenshots --> A
+    U(["👤 You"]) -- "log in once<br/>per account" --> L["Login window<br/><small>real browser, 2FA works</small>"]
+    L -- "named by<br/>email" --> V
+    K[["🔑 OS keychain<br/><small>macOS · Windows · Linux</small>"]] -. key .-> V
+
+    subgraph V["🔒 Encrypted vault"]
+        direction LR
+        P1["personal@gmail.com"]
+        P2["work@gmail.com"]
+        P3["shop@gmail.com"]
+        P4["you@company.com<br/><small>LinkedIn</small>"]
+    end
+
+    V -- decrypt --> S["⚙️ Assertify server<br/><small>asks before send · buy · delete</small>"]
+    A(["🤖 AI agent"]) <-- "pick one account<br/>or all at once" --> S
+    S -- "side by side" --> B
+
+    subgraph B["Headless browsers, logged in"]
+        direction LR
+        H1["Gmail · personal@"]
+        H2["Gmail · work@"]
+        H3["Gmail · shop@"]
+    end
+
+    classDef person fill:#eef2ff,stroke:#6366f1,color:#1e1b4b
+    classDef safe fill:#ecfdf5,stroke:#10b981,color:#064e3b
+    classDef live fill:#fff7ed,stroke:#f97316,color:#7c2d12
+    class U,A,L,S person
+    class P1,P2,P3,P4,K safe
+    class H1,H2,H3 live
+    style V fill:#f0fdf4,stroke:#10b981
+    style B fill:#fffbeb,stroke:#f59e0b
 ```
 
-Everything above runs on your computer.
+Log in once per account; each one is saved under its email. Your agent then opens one account by name, or every account for a site at once, each in its own logged-in browser. Everything above runs on your computer, on macOS, Windows or Linux.
 
 ## 🚀 Quick start
 
-You need [uv](https://docs.astral.sh/uv/getting-started/installation/) (`curl -LsSf https://astral.sh/uv/install.sh | sh`).
+You need [uv](https://docs.astral.sh/uv/getting-started/installation/):
+
+- **macOS / Linux:** `curl -LsSf https://astral.sh/uv/install.sh | sh`
+- **Windows (PowerShell):** `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`
 
 ```bash
 git clone https://github.com/romaklym/assertify.git
@@ -69,6 +96,15 @@ uv run assertify setup
 ```
 
 `setup` downloads the browser (Chromium, about 300 MB, once), checks your keychain, and prints the exact command to connect your AI client. If you skip it, Assertify downloads the browser on first use, or falls back to your installed Chrome or Edge.
+
+<details>
+<summary><b>Linux notes</b></summary>
+
+- If the browser won't start, install its system libraries: `sudo uv run playwright install-deps chromium`.
+- The key goes in Secret Service (GNOME Keyring or KWallet). On a server with no keychain, set `ASSERTIFY_PASSPHRASE` instead.
+- Logging in needs a screen for the browser window. On a server, log in on your desktop and copy `~/.assertify-mcp` over (with the same passphrase), or use `ssh -X`.
+
+</details>
 
 Then save your first login:
 
