@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 (2026-11-02)
 
 - Several accounts per site: log in without a name and the login is named after the account's email; `list_profiles(site)` / `assertify list <site>`; new `open_sessions` opens every account of a site (or a list) at once; `open_session` also accepts the account email; new `rename_profile` / `assertify rename`.
 - Profile names may contain `@` and `+`, so an email works as a name.
