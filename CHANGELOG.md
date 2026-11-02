@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.0 (2026-11-02)
 
 - New `upload_files` tool: attach files or whole folders (photos for a post, a PDF for an email). Uses the site's file dialog like a person, else its upload field, else drag-and-drop. Respects single-file fields and file-type limits.
 - Uploads never include secrets: hidden folders, keys, certificates, `.env`, cookie stores and the vault are refused. Optional `ASSERTIFY_UPLOAD_DIRS` allowlist and `ASSERTIFY_MAX_UPLOAD_MB` cap.
