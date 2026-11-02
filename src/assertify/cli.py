@@ -10,12 +10,12 @@ import sys
 from .vault import Vault, VaultError
 
 
-async def _login(profile: str, url: str, domains: list[str]) -> None:
+async def _login(profile: str, url: str, domains: list[str], read_only: bool) -> None:
     from .browser import BrowserManager
 
     m = BrowserManager()
     try:
-        await m.start_login(profile, url, domains)
+        await m.start_login(profile, url, domains, read_only=read_only)
         print(f"A browser window is open at {url}. Log in there (including any 2FA).")
         print("When you're done, close the browser window or press Enter here.")
         closed = asyncio.create_task(m.logins[profile].done.wait())
@@ -50,6 +50,9 @@ def main() -> None:
     lg.add_argument("profile")
     lg.add_argument("url")
     lg.add_argument("--domain", action="append", default=[], help="Allowed domain (repeatable)")
+    lg.add_argument(
+        "--read-only", action="store_true", help="Agents may browse and read, but never type, submit, send or buy"
+    )
     sub.add_parser("list", help="List saved sessions")
     dl = sub.add_parser("delete", help="Delete a saved session")
     dl.add_argument("profile")
@@ -65,7 +68,7 @@ def main() -> None:
 
             sys.exit(setup())
         elif args.cmd == "login":
-            asyncio.run(_login(args.profile, args.url, args.domain))
+            asyncio.run(_login(args.profile, args.url, args.domain, args.read_only))
         elif args.cmd == "list":
             print(json.dumps(Vault().list(), indent=2, default=str))
         elif args.cmd == "delete":

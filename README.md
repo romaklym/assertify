@@ -8,7 +8,7 @@
 **Let your AI agent use any website you're logged in to.**<br>
 Log in once. Your session stays encrypted on your machine. Claude, Codex, Cursor and any MCP client can then browse, click, type and read for you.
 
-[![CI](https://github.com/romaklym/assertify-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/romaklym/assertify-mcp/actions/workflows/ci.yml)
+[![CI](https://github.com/romaklym/assertify/actions/workflows/ci.yml/badge.svg)](https://github.com/romaklym/assertify/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-6366f1.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-3776ab.svg)](https://www.python.org)
 [![MCP](https://img.shields.io/badge/MCP-server-000.svg)](https://modelcontextprotocol.io)
@@ -35,6 +35,10 @@ Most sites have no API, or one that can't do what you need. Assertify gives your
 - 🤖 **Works with every MCP client.** Claude Code, Claude Desktop, Codex, Cursor, VS Code, Gemini CLI, Grok, Windsurf…
 - 👀 **See what the agent sees.** Every step can come with a screenshot, shown in the chat and saved to disk.
 - 🛡️ **Fenced in.** Each login is locked to its own domains, so a prompt injection on a page can't walk your logged-in browser somewhere else.
+- ✋ **Asks before it acts.** Buttons that send, post, buy, delete or connect are paused until you say yes. Logins can be made read-only.
+- 🧍 **Behaves like a person.** Real Chrome, your own browser fingerprint, curved mouse moves, uneven typing and natural pauses. No `navigator.webdriver` flag.
+- 🪟 **Handles pop-ups.** Cookie banners are declined for you; "share your contact info" style pop-ups are flagged so the agent decides, or closes them.
+- 🔁 **Hands back to you when needed.** CAPTCHAs, 2FA prompts and expired logins open in a window for you to finish; the agent then carries on.
 - 🪶 **Fast and token-cheap.** The agent reads a compact outline (`[e12] button "Send"`), not raw HTML.
 
 ## ⚙️ How it works
@@ -57,8 +61,8 @@ Everything above runs on your computer.
 You need [uv](https://docs.astral.sh/uv/getting-started/installation/) (`curl -LsSf https://astral.sh/uv/install.sh | sh`).
 
 ```bash
-git clone https://github.com/romaklym/assertify-mcp.git
-cd assertify-mcp
+git clone https://github.com/romaklym/assertify.git
+cd assertify
 uv sync
 uv run assertify setup
 ```
@@ -78,20 +82,20 @@ A browser window opens. Sign in, then close the window (or press Enter in the te
 
 ## 🔌 Connect your AI client
 
-Replace `/path/to/assertify-mcp` with where you cloned it (`assertify setup` prints the exact line for you).
+Replace `/path/to/assertify` with where you cloned it (`assertify setup` prints the exact line for you).
 
 <details open>
 <summary><b>Claude Code</b></summary>
 
 ```bash
-claude mcp add -s user assertify -- uv --directory /path/to/assertify-mcp run assertify serve
+claude mcp add -s user assertify -- uv --directory /path/to/assertify run assertify serve
 ```
 </details>
 
 <details>
 <summary><b>Claude Desktop</b></summary>
 
-**Easiest:** download [`assertify.mcpb`](https://github.com/romaklym/assertify-mcp/releases/latest/download/assertify.mcpb) and double-click it. Claude Desktop installs it with its icon and handles Python for you.
+**Easiest:** download [`assertify.mcpb`](https://github.com/romaklym/assertify/releases/latest/download/assertify.mcpb) and double-click it. Claude Desktop installs it with its icon and handles Python for you.
 
 Or add it to `claude_desktop_config.json` by hand:
 
@@ -100,7 +104,7 @@ Or add it to `claude_desktop_config.json` by hand:
   "mcpServers": {
     "assertify": {
       "command": "uv",
-      "args": ["--directory", "/path/to/assertify-mcp", "run", "assertify", "serve"]
+      "args": ["--directory", "/path/to/assertify", "run", "assertify", "serve"]
     }
   }
 }
@@ -111,7 +115,7 @@ Or add it to `claude_desktop_config.json` by hand:
 <summary><b>Codex</b></summary>
 
 ```bash
-codex mcp add assertify -- uv --directory /path/to/assertify-mcp run assertify serve
+codex mcp add assertify -- uv --directory /path/to/assertify run assertify serve
 ```
 
 or in `~/.codex/config.toml`:
@@ -119,7 +123,7 @@ or in `~/.codex/config.toml`:
 ```toml
 [mcp_servers.assertify]
 command = "uv"
-args = ["--directory", "/path/to/assertify-mcp", "run", "assertify", "serve"]
+args = ["--directory", "/path/to/assertify", "run", "assertify", "serve"]
 ```
 </details>
 
@@ -133,7 +137,7 @@ args = ["--directory", "/path/to/assertify-mcp", "run", "assertify", "serve"]
   "mcpServers": {
     "assertify": {
       "command": "uv",
-      "args": ["--directory", "/path/to/assertify-mcp", "run", "assertify", "serve"]
+      "args": ["--directory", "/path/to/assertify", "run", "assertify", "serve"]
     }
   }
 }
@@ -151,7 +155,7 @@ args = ["--directory", "/path/to/assertify-mcp", "run", "assertify", "serve"]
     "assertify": {
       "type": "stdio",
       "command": "uv",
-      "args": ["--directory", "/path/to/assertify-mcp", "run", "assertify", "serve"]
+      "args": ["--directory", "/path/to/assertify", "run", "assertify", "serve"]
     }
   }
 }
@@ -164,7 +168,7 @@ args = ["--directory", "/path/to/assertify-mcp", "run", "assertify", "serve"]
 Any client that runs local (stdio) MCP servers works. Use this command:
 
 ```text
-uv --directory /path/to/assertify-mcp run assertify serve
+uv --directory /path/to/assertify run assertify serve
 ```
 
 For JSON configs, use the `mcpServers` block shown under Cursor.
@@ -178,9 +182,12 @@ For JSON configs, use the `mcpServers` block shown under Cursor.
 | `start_login` / `complete_login` | Open a window for **you** to log in, then encrypt and save the session |
 | `delete_profile` | Remove a saved login |
 | `open_session(profile, url?, screenshots?)` | Start a logged-in headless browser; returns a `session_id` and a page outline |
-| `snapshot` | URL, title and interactive elements as `[e12] button "Save"` |
-| `click` · `type_text` · `select_option` · `press_key` · `scroll` · `back` · `navigate` · `wait_for` | Act on refs from the latest snapshot; each returns a fresh outline |
-| `read_text` | The visible text of the page |
+| `snapshot` | URL, title and interactive elements as `[e12] button "Save"`; pop-ups first, warnings for CAPTCHAs and sign-in pages |
+| `find(query)` | Search the whole page for elements by label |
+| `click` · `type_text` · `select_option` · `press_key` · `scroll` · `back` · `navigate` · `wait_for` | Act by ref **or by visible text** (`click(text="Messages")`), so small redesigns don't break a flow; each returns a fresh outline |
+| `dismiss_popup` | Close the pop-up on top with its close / "Not now" button |
+| `handoff(reason?)` | Open the current page in a window for **you** (CAPTCHA, 2FA, expired login); the session picks up your fresh login |
+| `read_text` | The visible text of the page, marked as untrusted website content |
 | `screenshot(ref?, full_page?)` | Screenshot of the page or one element, shown to the agent and saved to a file |
 | `set_screenshots(enabled)` | Attach a screenshot to every step (great for watching a run) |
 | `switch_tab` | Popups become the active tab automatically; this switches back |
@@ -191,6 +198,28 @@ For JSON configs, use the `mcpServers` block shown under Cursor.
 
 Ask *"show me a screenshot"* or *"open my GitHub session with screenshots on so I can follow along"*. Images appear in the chat in clients that show them, and every one is saved to `~/.assertify-mcp/screenshots/<session>/NNN-<step>.jpg`. The folder is private to you and cleared after 7 days.
 
+## 🧍 Staying unnoticed
+
+Sites flag browsers that act like robots. Assertify tries hard not to:
+
+- **Real Chrome** when it's installed (falls back to Chromium), without the "controlled by automated software" flag or `navigator.webdriver`.
+- **Your fingerprint.** The user agent, language and time zone from your login window are reused by the agent's browser, so the site keeps seeing the same "device".
+- **Human input.** The mouse travels along a curve to a random spot inside each button, keys are typed one by one at uneven speed, scrolling comes in flicks, and there are short random pauses between actions and between page loads.
+- **A speed limit.** Page loads per login per hour are capped (400 by default, 60 on sites that ban automation).
+
+Set `ASSERTIFY_HUMANIZE=0` to turn the human input off (faster; fine for your own tools and test sites).
+
+## 🪟 Pop-ups, dialogs and expired logins
+
+- **Cookie banners** are answered with "Reject all" / "Only necessary" automatically (`ASSERTIFY_AUTO_CONSENT=0` to turn off).
+- **Other pop-ups** (newsletter, "share your contact info", app promos) are listed first in the snapshot under `## Pop-up` with a warning. The agent decides based on your request, or calls `dismiss_popup`. A click on something hidden behind a pop-up is refused with a hint instead of silently hitting the overlay.
+- **Browser dialogs** (`alert`, `confirm`, "Are you sure?") are cancelled and reported; the agent repeats the click with `accept_dialog=true` when it means it.
+- **CAPTCHAs, 2FA and expired sessions** show a warning in the snapshot. The agent never tries to solve them: it calls `handoff`, a window opens on your screen at the same page, you finish, close it, and the agent continues with the new cookies.
+
+## ⚖️ Use it responsibly
+
+Many sites' terms forbid automated access. LinkedIn, Facebook, Instagram, Threads, X and TikTok say so explicitly and do restrict accounts for it. Assertify recognises these sites, runs slower on them, caps page loads lower and tells the agent to keep tasks small and personal. Light personal use (checking your own messages, updating your own profile) is usually fine; scraping, bulk messaging or mass connecting is how accounts get restricted. You are responsible for following the terms of the sites you use.
+
 ## 🔒 Security
 
 - **Storage:** `~/.assertify-mcp/profiles/<name>.enc`, AES-256-GCM, file mode `0600`, folder `0700`. The profile name is bound into the ciphertext, so files can't be swapped or renamed.
@@ -198,7 +227,9 @@ Ask *"show me a screenshot"* or *"open my GitHub session with screenshots on so 
 - **Domain guard:** navigation outside a login's `allowed_domains` is blocked. By default that's the login URL's domain and its subdomains; add more with `--domain` (e.g. for SSO).
 - **No passwords in context:** password fields show as `value=<hidden>` in snapshots.
 - **No telemetry, no server, no account.** Nothing leaves your machine except your own browser traffic to the sites you use.
-- **Ask before acting:** the server tells agents to confirm with you before purchases, sending messages or deleting data.
+- **Ask before acting:** buttons labelled send, post, buy, pay, delete, connect, follow, apply and similar, and pressing Enter in a message box, are paused until the agent calls again with `confirmed=true`, which it is told to do only after you approve.
+- **Read-only logins:** `assertify login <name> <url> --read-only` (or `read_only=true` in `start_login`) lets agents browse and read but never type, submit, send or buy.
+- **Untrusted pages:** page text is returned wrapped and labelled as website content, and agents are told never to follow instructions found in pages, emails or messages. Only `http(s)` pages can be opened, and downloads are disabled.
 
 > [!WARNING]
 > A saved session is as powerful as being logged in. Anyone who can run code as your user while your keychain is unlocked can use it, the same as your browser's own cookies. Only connect agents you trust.
@@ -216,8 +247,12 @@ Found a vulnerability? See [SECURITY.md](SECURITY.md).
 | `ASSERTIFY_NO_AUTO_INSTALL=1` | Never download Chromium automatically |
 | `ASSERTIFY_ALLOW_EVAL=1` | Enable the `evaluate` tool |
 | `ASSERTIFY_ALLOW_ANY_DOMAIN=1` | Turn off the domain guard |
+| `ASSERTIFY_HUMANIZE=0` | Turn off human-like mouse, typing and pauses |
+| `ASSERTIFY_BROWSER` | `chrome`, `chromium` or `msedge` (default: Chrome if installed, else Chromium) |
+| `ASSERTIFY_MAX_PAGES_PER_HOUR` | Page-load cap per login (default 400; 60 on strict sites) |
+| `ASSERTIFY_AUTO_CONSENT=0` | Don't auto-decline cookie banners |
 
-CLI: `assertify setup | login <name> <url> [--domain d] | list | delete <name> | serve`.
+CLI: `assertify setup | login <name> <url> [--domain d] [--read-only] | list | delete <name> | serve`.
 
 ## ❓ FAQ
 
@@ -225,13 +260,16 @@ CLI: `assertify setup | login <name> <url> [--domain d] | list | delete <name> |
 Yes. You log in yourself in a real browser window, so anything you can do there works. Add the SSO domain with `--domain` if the site bounces through one.
 
 **Why did a site log me out?**
-Some sites tie sessions to a device or detect headless browsers. Run the login again, or set `ASSERTIFY_HEADED=1`. Sessions also expire on the site's own schedule; Assertify saves refreshed cookies when a session closes, which keeps rolling sessions alive.
+Sessions expire on the site's own schedule, and some sites ask for a CAPTCHA or 2FA again now and then. When that happens the agent calls `handoff` and a window opens for you to sign in again; nothing else to do. Assertify also saves refreshed cookies when a session closes, which keeps rolling sessions alive. If a site keeps rejecting the headless browser, set `ASSERTIFY_HEADED=1`.
+
+**Will a site redesign break my agent?**
+Less than you'd think. The agent reads the page fresh every step and can click by visible text (`click(text="Messages")`) instead of fixed selectors, so it adapts like a person would. A full redesign can still confuse it; it will tell you what it sees.
 
 **Can I use it from my phone or a server?**
 Not yet. Assertify is local-first by design: your sessions never leave your computer.
 
 **Known limits**
-Login saves cookies and localStorage, not IndexedDB, so a few apps that keep their token only in IndexedDB won't stay logged in. Snapshots don't look inside iframes or closed shadow roots yet.
+Login saves cookies and localStorage, not IndexedDB, so a few apps that keep their token only in IndexedDB won't stay logged in. No anti-detection is perfect: a site determined to spot automation may still do so. Snapshots don't look inside iframes or closed shadow roots yet.
 
 ## 🤝 Contributing
 

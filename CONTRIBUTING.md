@@ -5,8 +5,8 @@ Thanks for helping! Bug reports, site compatibility notes and PRs are all welcom
 ## Setup
 
 ```bash
-git clone https://github.com/romaklym/assertify-mcp.git
-cd assertify-mcp
+git clone https://github.com/romaklym/assertify.git
+cd assertify
 uv sync
 uv run assertify setup   # downloads Chromium once
 ```

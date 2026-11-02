@@ -1,6 +1,6 @@
 [project]
 name = "assertify-mcp"
-version = "0.1.0"
+version = "0.2.0"
 description = "Let AI agents use any website you're logged in to. Log in once; the session stays encrypted on your machine."
 readme = "README.md"
 license = "MIT"
@@ -24,8 +24,8 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/romaklym/assertify-mcp"
-Issues = "https://github.com/romaklym/assertify-mcp/issues"
+Homepage = "https://github.com/romaklym/assertify"
+Issues = "https://github.com/romaklym/assertify/issues"
 
 [project.scripts]
 assertify = "assertify.cli:main"

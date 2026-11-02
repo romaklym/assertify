@@ -5,7 +5,7 @@ Assertify holds logged-in sessions for real accounts, so security reports are ta
 ## Reporting a vulnerability
 
 Please **do not open a public issue**. Use GitHub's private
-[security advisory form](https://github.com/romaklym/assertify-mcp/security/advisories/new) instead.
+[security advisory form](https://github.com/romaklym/assertify/security/advisories/new) instead.
 You'll get a reply within a few days.
 
 Helpful to include: what an attacker can do, steps to reproduce, and the version or commit.

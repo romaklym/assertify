@@ -3,20 +3,20 @@
   "manifest_version": "0.4",
   "name": "assertify",
   "display_name": "Assertify",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Let Claude use any website you're logged in to. Log in once; the session stays encrypted on your machine.",
-  "long_description": "Assertify gives Claude a real browser that is already logged in as you. You sign in once in a normal browser window (2FA, passkeys and SSO all work), and the session is saved AES-256-GCM encrypted with a key in your OS keychain. Claude can then open headless, logged-in sessions to read, click, type and take screenshots. Each login is locked to its own domains. Nothing is uploaded anywhere: there is no server, no account and no telemetry.",
+  "long_description": "Assertify gives Claude a real browser that is already logged in as you. You sign in once in a normal browser window (2FA, passkeys and SSO all work), and the session is saved AES-256-GCM encrypted with a key in your OS keychain. Claude can then open headless, logged-in sessions to read, click, type and take screenshots. Each login is locked to its own domains, risky clicks (send, buy, delete) wait for your OK, and logins can be read-only. It acts like a person (real Chrome, natural mouse and typing), handles pop-ups, and hands CAPTCHAs, 2FA and expired logins back to you. Nothing is uploaded anywhere: there is no server, no account and no telemetry.",
   "author": {
     "name": "Roman Klym",
     "url": "https://github.com/romaklym"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/romaklym/assertify-mcp"
+    "url": "https://github.com/romaklym/assertify"
   },
-  "homepage": "https://github.com/romaklym/assertify-mcp",
-  "documentation": "https://github.com/romaklym/assertify-mcp#readme",
-  "support": "https://github.com/romaklym/assertify-mcp/issues",
+  "homepage": "https://github.com/romaklym/assertify",
+  "documentation": "https://github.com/romaklym/assertify#readme",
+  "support": "https://github.com/romaklym/assertify/issues",
   "icon": "assets/icon.png",
   "icons": [
     {
@@ -42,7 +42,7 @@
   "tools": [
     {
       "name": "list_profiles",
-      "description": "List saved website logins (name, start URL, allowed domains, last updated)."
+      "description": "List saved website logins (name, start URL, allowed domains, read-only, last updated)."
     },
     {
       "name": "start_login",
@@ -69,8 +69,16 @@
       "description": "Write the session's current cookies/storage back to the encrypted vault."
     },
     {
+      "name": "handoff",
+      "description": "Let the USER take over in a visible window: CAPTCHAs, 2FA prompts, expired logins, anything"
+    },
+    {
       "name": "snapshot",
       "description": "Current URL, title and a list of interactive elements with [eN] refs to use in other tools."
+    },
+    {
+      "name": "find",
+      "description": "Search the whole page (not just the first items of the snapshot) for elements whose label,"
     },
     {
       "name": "navigate",
@@ -82,19 +90,23 @@
     },
     {
       "name": "click",
-      "description": "Click the element with the given ref (e.g. \"e12\") from the latest snapshot."
+      "description": "Click an element: `ref` from the latest snapshot (e.g. \"e12\"), or its visible `text`"
     },
     {
       "name": "type_text",
-      "description": "Replace the contents of a text field with `text`. submit=True presses Enter afterwards."
+      "description": "Replace the contents of a text field with `text`. Pick the field by `ref` or its visible `label`."
     },
     {
       "name": "select_option",
-      "description": "Choose an option (by visible label or value) in a <select> element."
+      "description": "Choose an option (by visible label or value) in a <select> element, picked by `ref` or `label`."
     },
     {
       "name": "press_key",
       "description": "Press a key on the page, e.g. \"Enter\", \"Escape\", \"Tab\", \"Control+A\"."
+    },
+    {
+      "name": "dismiss_popup",
+      "description": "Close the pop-up on top of the page (cookie banner, \"share your info\", newsletter, app promo...)"
     },
     {
       "name": "scroll",

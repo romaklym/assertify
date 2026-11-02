@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.2.0 (2026-11-02)
+
+Hardening: harder to detect, safer with your accounts, better with pop-ups and expired logins.
+
+- Human-like input: curved mouse moves to random points, per-key typing, uneven scrolling, random pauses (`ASSERTIFY_HUMANIZE=0` to turn off).
+- Stealth: real Chrome first, no automation flag or `navigator.webdriver`, the login window's user agent, language and time zone reused by the agent.
+- Pop-ups: listed first in snapshots with a warning; new `dismiss_popup`; clicks behind a pop-up are refused with a hint; cookie banners declined automatically; `alert`/`confirm` boxes reported and cancelled unless `accept_dialog=true`.
+- Safety: send/buy/delete/connect-style buttons and Enter in message boxes need `confirmed=true`; read-only logins (`--read-only`); page text labelled as untrusted; only http(s) URLs; downloads disabled.
+- Terms of service: LinkedIn, Facebook, Instagram, Threads, X and TikTok get slower pacing and a lower page-load cap; hourly cap for all sites (`ASSERTIFY_MAX_PAGES_PER_HOUR`).
+- Expired sessions: snapshots flag CAPTCHAs and sign-in pages; new `handoff` opens the page for you and refreshes the agent's session afterwards.
+- Redesign-proofing: `click`, `type_text` and `select_option` accept visible text instead of a ref; new `find` searches the whole page.
+- Fix: a blocked navigation no longer leaves the session on Chrome's error page.
+
 ## 0.1.0 (2026-11-02)
 
 First public release.

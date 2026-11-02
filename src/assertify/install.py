@@ -15,7 +15,12 @@ from pathlib import Path
 
 from playwright.async_api import Playwright
 
-FALLBACK_CHANNELS = ["chrome", "msedge"]  # the user's own Chrome / Edge, if installed
+# Real Chrome first: it looks like a normal browser to sites. Then full Chromium, whose "new" headless
+# mode is far harder to detect than the default headless shell.
+AUTO_CHANNELS = ["chrome", "chromium"]
+# Playwright adds --enable-automation, which shows the "controlled by automated software" bar and
+# sets navigator.webdriver. Drop it.
+STEALTH = {"ignore_default_args": ["--enable-automation"]}
 
 
 def install_chromium(out=None) -> bool:
@@ -29,25 +34,27 @@ def install_chromium(out=None) -> bool:
 
 
 async def launch(pw: Playwright, **kwargs):
-    """Launch Chromium; if it's missing, install it, else fall back to the user's Chrome/Edge."""
-    try:
-        return await pw.chromium.launch(**kwargs)
-    except Exception as e:
-        if "Executable doesn't exist" not in str(e):
-            raise
-    if os.environ.get("ASSERTIFY_NO_AUTO_INSTALL") != "1":
-        if await asyncio.to_thread(install_chromium):
-            return await pw.chromium.launch(**kwargs)
-    for channel in FALLBACK_CHANNELS:
+    """Launch a browser. ASSERTIFY_BROWSER=chrome|chromium|msedge picks one; by default the user's
+    Chrome, else Chromium (installed on first use if needed), else Edge."""
+    kwargs = {**STEALTH, **kwargs}
+    choice = os.environ.get("ASSERTIFY_BROWSER", "").lower()
+    channels = [choice] if choice else AUTO_CHANNELS
+    errors = []
+    for channel in channels:
         try:
-            browser = await pw.chromium.launch(channel=channel, **kwargs)
-            print(f"assertify: using your installed {channel} (Chromium not available)", file=sys.stderr)
-            return browser
-        except Exception:
-            continue
+            return await pw.chromium.launch(channel=channel, **kwargs)
+        except Exception as e:
+            errors.append(f"{channel}: {str(e).splitlines()[0]}")
+    if "chromium" in channels and os.environ.get("ASSERTIFY_NO_AUTO_INSTALL") != "1":
+        if await asyncio.to_thread(install_chromium):
+            return await pw.chromium.launch(channel="chromium", **kwargs)
+    if not choice:
+        try:
+            return await pw.chromium.launch(channel="msedge", **kwargs)
+        except Exception as e:
+            errors.append(f"msedge: {str(e).splitlines()[0]}")
     raise RuntimeError(
-        "No browser available: Chromium couldn't be downloaded and no Chrome/Edge was found. "
-        "Run `assertify setup` in a terminal to fix this."
+        "No browser available (" + "; ".join(errors) + "). Run `assertify setup` in a terminal to fix this."
     )
 
 
