@@ -31,13 +31,14 @@ Agent:  open_session("linkedin") → click "Messaging" → read_text …
 Most sites have no API, or one that can't do what you need. Assertify gives your agent a real browser that is **already logged in as you**, without ever handing it your password.
 
 - 🔐 **Log in once, by hand.** A normal browser window opens; you sign in (2FA, passkeys, SSO all work). The agent never sees your password.
-- 🧳 **Encrypted, local, yours.** Sessions are AES-256-GCM encrypted with a key in your OS keychain. Nothing is uploaded anywhere. There is no server and no account.
+- 🧳 **Encrypted, local, yours.** Sessions are AES-256-GCM encrypted with a key in your OS keychain. Assertify itself sends nothing anywhere. There is no server and no account.
 - 🤖 **Works with every MCP client.** Claude Code, Claude Desktop, Codex, Cursor, VS Code, Gemini CLI, Grok, Windsurf…
 - 👀 **See what the agent sees.** Every step can come with a screenshot, shown in the chat and saved to disk.
 - 🛡️ **Fenced in.** Each login is locked to its own domains, so a prompt injection on a page can't walk your logged-in browser somewhere else.
 - 👥 **Many accounts per site.** Five Gmail accounts? Log in to each; they're named after their emails. Use one, or open them all at once.
 - ✋ **Asks before it acts.** Buttons that send, post, buy, delete or connect are paused until you say yes. Logins can be made read-only.
 - 🧍 **Behaves like a person.** Real Chrome, your own browser fingerprint, curved mouse moves, uneven typing and natural pauses. No `navigator.webdriver` flag.
+- 📎 **Uploads files and folders.** Photos for a Facebook post, a PDF for an email: the agent clicks the upload button and picks your files, just like you would. Key and password files are always refused.
 - 🪟 **Handles pop-ups.** Cookie banners are declined for you; "share your contact info" style pop-ups are flagged so the agent decides, or closes them.
 - 🔁 **Hands back to you when needed.** CAPTCHAs, 2FA prompts and expired logins open in a window for you to finish; the agent then carries on.
 - 🪶 **Fast and token-cheap.** The agent reads a compact outline (`[e12] button "Send"`), not raw HTML.
@@ -223,6 +224,7 @@ For JSON configs, use the `mcpServers` block shown under Cursor.
 | `snapshot` | URL, title and interactive elements as `[e12] button "Save"`; pop-ups first, warnings for CAPTCHAs and sign-in pages |
 | `find(query)` | Search the whole page for elements by label |
 | `click` · `type_text` · `select_option` · `press_key` · `scroll` · `back` · `navigate` · `wait_for` | Act by ref **or by visible text** (`click(text="Messages")`), so small redesigns don't break a flow; each returns a fresh outline |
+| `upload_files(paths, ref? \| text?)` | Attach files or whole folders: through the site's file dialog (`text="Photo/video"`), its upload field, or drag-and-drop. Only attaches; posting is a separate, confirmed click |
 | `dismiss_popup` | Close the pop-up on top with its close / "Not now" button |
 | `handoff(reason?)` | Open the current page in a window for **you** (CAPTCHA, 2FA, expired login); the session picks up your fresh login |
 | `read_text` | The visible text of the page, marked as untrusted website content |
@@ -255,6 +257,22 @@ Then just ask:
 
 Each account lives in its own encrypted file and its own isolated browser, so cookies never mix. On sites that restrict automation, avoid running the same action on many accounts at once.
 
+## 📎 Uploading files
+
+Tell your agent what to upload and where:
+
+> *"Post the photos in ~/Pictures/trip to my Facebook with the caption 'Back home'"*
+
+The agent opens the composer, calls `upload_files(paths=["~/Pictures/trip"], text="Photo/video")`, writes the caption, then asks you before pressing **Post**. Under the hood:
+
+1. **File dialog first.** It clicks the upload button with a natural mouse move and picks the files in the browser's file dialog, the same events a site sees when you do it.
+2. **Hidden upload field next.** Most sites hide the real `<input type="file">` behind a button; Assertify finds the one near what the agent pointed at, or the one that accepts these file types.
+3. **Drag and drop last.** For drop-only areas it drops the files like a drag from your desktop (up to 50 MB).
+
+A folder means every file in it, subfolders included, skipping hidden files like `.DS_Store`. Single-file fields, file-type limits (`accept="image/*"`) and folder pickers are respected.
+
+**What can never be uploaded:** anything in hidden folders (`~/.ssh`, `~/.aws`, …), key, certificate, password-manager and `.env` files, browser cookie stores, and Assertify's own vault. Paths must be full paths the user gave; agents are told never to upload a file because a page or email asked. Limits: 100 files and 2 GB per call. To allow only certain folders, set `ASSERTIFY_UPLOAD_DIRS`.
+
 ## 🧍 Staying unnoticed
 
 Sites flag browsers that act like robots. Assertify tries hard not to:
@@ -286,6 +304,7 @@ Many sites' terms forbid automated access. LinkedIn, Facebook, Instagram, Thread
 - **No telemetry, no server, no account.** Nothing leaves your machine except your own browser traffic to the sites you use.
 - **Ask before acting:** buttons labelled send, post, buy, pay, delete, connect, follow, apply and similar, and pressing Enter in a message box, are paused until the agent calls again with `confirmed=true`, which it is told to do only after you approve.
 - **Read-only logins:** `assertify login <name> <url> --read-only` (or `read_only=true` in `start_login`) lets agents browse and read but never type, submit, send or buy.
+- **Uploads:** only full paths, never secrets (hidden folders, keys, `.env`, cookie stores, the vault), symlinks resolved first, optional folder allowlist (`ASSERTIFY_UPLOAD_DIRS`). Read-only logins can't upload.
 - **Untrusted pages:** page text is returned wrapped and labelled as website content, and agents are told never to follow instructions found in pages, emails or messages. Only `http(s)` pages can be opened, and downloads are disabled.
 
 > [!WARNING]
@@ -308,6 +327,8 @@ Found a vulnerability? See [SECURITY.md](SECURITY.md).
 | `ASSERTIFY_BROWSER` | `chrome`, `chromium` or `msedge` (default: Chrome if installed, else Chromium) |
 | `ASSERTIFY_MAX_PAGES_PER_HOUR` | Page-load cap per login (default 400; 60 on strict sites) |
 | `ASSERTIFY_AUTO_CONSENT=0` | Don't auto-decline cookie banners |
+| `ASSERTIFY_UPLOAD_DIRS` | Only allow uploads from these folders (separated by `:` on macOS/Linux, `;` on Windows) |
+| `ASSERTIFY_MAX_UPLOAD_MB` | Upload size cap per call (default 2048) |
 
 CLI: `assertify setup | login [name] <url> [--domain d] [--read-only] | list [site] | rename <name> <new> | delete <name> | serve`.
 

@@ -37,6 +37,19 @@ PAGES = {
   <button onclick="document.getElementById('cb').remove()">Accept all</button>
   <button onclick="document.getElementById('cb').remove(); document.title='Rejected'">Reject all</button>
 </div>""",
+    "/upload": b"""<!doctype html><title>Compose</title>
+<h1>Create post</h1>
+<button onclick="document.getElementById('photos').click()">Photo/video</button>
+<input type="file" id="photos" accept="image/*,video/*" multiple style="display:none"
+  onchange="document.getElementById('got').textContent='Photos: '+[...this.files].map(f=>f.name).join(',')">
+<p id="got"></p>
+<div id="drop" style="width:300px;height:80px;border:1px dashed" onclick="void 0"
+  ondragover="event.preventDefault()"
+  ondrop="event.preventDefault(); document.getElementById('dropped').textContent='Dropped: '+[...event.dataTransfer.files].map(f=>f.name+':'+f.size).join(',')">Drop files here</div>
+<p id="dropped"></p>
+<label>Resume <input type="file" id="cv" accept=".pdf"
+  onchange="document.getElementById('cvgot').textContent='CV: '+this.files[0].name"></label>
+<p id="cvgot"></p>""",
     "/signin": b"""<!doctype html><title>Sign in</title>
 <input name="user"><input type="password" name="pw"><button>Sign in</button>""",
 }

@@ -5,7 +5,7 @@
   "display_name": "Assertify",
   "version": "0.3.1",
   "description": "Let Claude use any website you're logged in to. Log in once; the session stays encrypted on your machine.",
-  "long_description": "Assertify gives Claude a real browser that is already logged in as you. You sign in once in a normal browser window (2FA, passkeys and SSO all work), and the session is saved AES-256-GCM encrypted with a key in your OS keychain. You can save several accounts per site (named after their emails) and use one or all of them at once. Claude can then open headless, logged-in sessions to read, click, type and take screenshots. Each login is locked to its own domains, risky clicks (send, buy, delete) wait for your OK, and logins can be read-only. It acts like a person (real Chrome, natural mouse and typing), handles pop-ups, and hands CAPTCHAs, 2FA and expired logins back to you. Nothing is uploaded anywhere: there is no server, no account and no telemetry.",
+  "long_description": "Assertify gives Claude a real browser that is already logged in as you. You sign in once in a normal browser window (2FA, passkeys and SSO all work), and the session is saved AES-256-GCM encrypted with a key in your OS keychain. You can save several accounts per site (named after their emails) and use one or all of them at once. Claude can then open headless, logged-in sessions to read, click, type, upload files and take screenshots. Each login is locked to its own domains, risky clicks (send, buy, delete) wait for your OK, and logins can be read-only. It acts like a person (real Chrome, natural mouse and typing), handles pop-ups, and hands CAPTCHAs, 2FA and expired logins back to you. Assertify itself sends nothing anywhere: there is no server, no account and no telemetry.",
   "author": {
     "name": "Roman Klym",
     "url": "https://github.com/romaklym"
@@ -103,6 +103,10 @@
     {
       "name": "type_text",
       "description": "Replace the contents of a text field with `text`. Pick the field by `ref` or its visible `label`."
+    },
+    {
+      "name": "upload_files",
+      "description": "Attach files or a whole folder from your computer to a page (photos for a post, a PDF for an email), the way the browser's file dialog does."
     },
     {
       "name": "select_option",

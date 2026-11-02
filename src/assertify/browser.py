@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import mimetypes
 import os
 import random
 import re
@@ -11,6 +13,7 @@ import shutil
 import sys
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from urllib.parse import urlparse
 
 from playwright.async_api import (
@@ -23,6 +26,7 @@ from playwright.async_api import (
     Route,
     async_playwright,
 )
+from playwright.async_api import TimeoutError as PlaywrightTimeout
 
 from . import human, safety
 from .install import launch
@@ -71,6 +75,7 @@ SNAPSHOT_JS = r"""
       const ty = (el.type || 'text').toLowerCase();
       if (['checkbox','radio'].includes(ty)) return ty;
       if (['submit','button','reset','image'].includes(ty)) return 'button';
+      if (ty === 'file') return 'file-upload';
       return ty === 'text' ? 'textbox' : `textbox:${ty}`;
     }
     if (el.isContentEditable) return 'textbox';
@@ -138,7 +143,10 @@ SNAPSHOT_JS = r"""
     /^just a moment/i.test(document.title);
   const signIn = [...document.querySelectorAll('input[type=password]')].some(visible) ||
     /\/(log-?in|sign-?in|signin|auth|authenticate|checkpoint|uas\/login|session\/new)(\/|\?|$|\.)/i.test(location.pathname);
-  return {lines, items, popups: popups.map(popupName), captcha, signIn};
+  // Upload fields are usually hidden behind an "Add photo" button, so count them separately.
+  const uploads = [...document.querySelectorAll('input[type=file]')].filter(e => !e.disabled).map(e => ({
+    accept: e.accept || '', multiple: e.multiple, folder: e.webkitdirectory, inPopup: inPopup(e)}));
+  return {lines, items, popups: popups.map(popupName), captcha, signIn, uploads};
 }
 """
 
@@ -159,6 +167,41 @@ COVER_JS = r"""
   return null;
 }
 """
+
+# Upload fields on the page (visible or hidden), tagged so Python can pick one.
+FILE_INPUTS_JS = r"""
+(near) => {
+  const nearEl = near ? document.querySelector(`[data-as-ref="${near}"]`) : null;
+  const modal = '[role=dialog],[role=alertdialog],dialog[open],[aria-modal=true]';
+  return [...document.querySelectorAll('input[type=file]')].filter(e => !e.disabled).map((e, i) => {
+    e.setAttribute('data-as-file', String(i));
+    let depth = 99;  // how close it sits to the element the agent pointed at
+    if (nearEl) for (let a = nearEl, d = 0; a && a !== document.body && d < 4; a = a.parentElement, d++) if (a.contains(e)) { depth = d; break; }
+    return {i, accept: e.accept || '', multiple: e.multiple, folder: e.webkitdirectory,
+            inDialog: !!e.closest(modal), depth};
+  });
+}
+"""
+
+# Drop files onto an element the way a drag from the desktop does (for drop-only zones).
+DROP_JS = r"""
+async (el, files) => {
+  const dt = new DataTransfer();
+  for (const f of files) {
+    const bin = atob(f.b64), bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    dt.items.add(new File([bytes], f.name, {type: f.type, lastModified: f.mtime}));
+  }
+  const r = el.getBoundingClientRect();
+  const opts = {bubbles: true, cancelable: true, dataTransfer: dt, clientX: r.x + r.width / 2, clientY: r.y + r.height / 2};
+  for (const type of ['dragenter', 'dragover', 'drop']) {
+    el.dispatchEvent(new DragEvent(type, opts));
+    await new Promise(res => setTimeout(res, 60 + Math.random() * 120));
+  }
+  return true;
+}
+"""
+MAX_DROP_BYTES = 50 * 1024 * 1024  # drag-and-drop copies files through the page, so keep it modest
 
 # Click the most privacy-friendly button on a cookie banner ("Reject all", "Only necessary", ...).
 CONSENT_JS = r"""
@@ -694,6 +737,12 @@ class BrowserManager:
         role, name, submit, _ = s.items.get(ref, ["", "", False, ""])
         safety.check_click(role, name, submit, s.read_only, confirmed)
         self.budget.check(s.profile, s.site)
+        s.accept_dialog = accept_dialog
+        await self._press(s, ref, loc)
+        return f'Clicked {ref} {role} "{name}"' if name else f"Clicked {ref} {role}"
+
+    async def _press(self, s: Session, ref: str, loc: Locator) -> None:
+        """Move the mouse to the element like a person and click it, unless a pop-up covers it."""
         await human.pause(0.3, 1.1, s.slow)
         await loc.evaluate("el => el.scrollIntoView({block: 'center', inline: 'center', behavior: 'instant'})")
         await asyncio.sleep(0.05)
@@ -707,10 +756,113 @@ class BrowserManager:
                 f'Can\'t click {ref}: a pop-up is covering it ("{blocker}"). Handle the pop-up first: '
                 "click one of its buttons, or call dismiss_popup to close it."
             )
-        s.accept_dialog = accept_dialog
         await human.click_at(s.active, s.mouse, x, y)
         s.mouse = (x, y)
-        return f'Clicked {ref} {role} "{name}"' if name else f"Clicked {ref} {role}"
+
+    async def upload(self, s: Session, paths: list[str], ref: str | None, text: str | None, confirmed: bool) -> str:
+        """Attach files the way a person would: click the upload button and pick them in the file
+        dialog; else fill the page's (often hidden) upload field; else drop them on a drop zone."""
+        if s.read_only:
+            raise safety.Blocked("Blocked: this profile is read-only, so it can't upload files.")
+        files = safety.upload_paths(paths, vault_home())
+        given = Path(paths[0]).expanduser()
+        folder = given.resolve() if len(paths) == 1 and given.is_dir() else None
+        page = s.active
+        how = None
+        if ref or text:
+            ref, loc = await self.locate(s, ref, text)
+            role, name, submit, _ = s.items.get(ref, ["", "", False, ""])
+            if role == "file-upload" or await loc.evaluate("el => el.matches('input[type=file]')"):
+                self._fits(files, await loc.evaluate("el => ({accept: el.accept, multiple: el.multiple})"), name)
+                await human.pause(0.4, 1.2, s.slow)
+                await loc.set_input_files(files)
+                how = f"the upload field {ref}"
+            else:
+                safety.check_click(role, name, submit, s.read_only, confirmed)
+                self.budget.check(s.profile, s.site)
+                try:
+                    async with page.expect_file_chooser(timeout=4000) as fc:
+                        await self._press(s, ref, loc)
+                    chooser = await fc.value
+                    if len(files) > 1 and not chooser.is_multiple():
+                        raise safety.Blocked(
+                            f'"{name}" takes one file at a time, but you gave {len(files)}. Upload them one by one.'
+                        )
+                    await human.pause(0.8, 2.0, s.slow)  # a person browsing the file dialog
+                    is_folder = await chooser.element.evaluate("el => el.webkitdirectory")
+                    await chooser.set_files(folder if (is_folder and folder) else files)
+                    how = f'"{name or ref}" (file dialog)'
+                except PlaywrightTimeout:
+                    how = await self._upload_to_input(s, files, near=ref, folder=folder) or await self._drop(
+                        s, ref, loc, files
+                    )
+        else:
+            how = await self._upload_to_input(s, files, near=None, folder=folder)
+            if not how:
+                raise VaultError(
+                    "There's no upload field on this page yet. Open the place you'd upload from first "
+                    '(e.g. click "Photo/video" or "Attach"), then call upload_files again, optionally with '
+                    "the ref of the upload button or drop area."
+                )
+        sizes = ", ".join(f"{f.name} ({_size(f.stat().st_size)})" for f in files[:10])
+        more = f" and {len(files) - 10} more" if len(files) > 10 else ""
+        return (
+            f"Attached {len(files)} file(s) via {how}: {sizes}{more}. Nothing is posted yet: check the page "
+            "(uploads can take a moment), then press Post/Send only after the user confirms."
+        )
+
+    @staticmethod
+    def _fits(files: list, field: dict, label: str = "") -> None:
+        if len(files) > 1 and not field.get("multiple"):
+            raise safety.Blocked(
+                f"The upload field {label!r} takes one file, but you gave {len(files)}. Upload them one by one."
+            )
+        wrong = [f.name for f in files if not safety.accepts(field.get("accept", ""), f)]
+        if wrong:
+            raise safety.Blocked(
+                f"The upload field only accepts {field['accept']}; these don't match: {', '.join(wrong[:5])}."
+            )
+
+    async def _upload_to_input(self, s: Session, files: list, near: str | None, folder=None) -> str | None:
+        """Fill the best matching <input type=file>: the one inside the clicked area or open dialog,
+        that accepts these file types, newest on the page."""
+        inputs = await s.active.evaluate(FILE_INPUTS_JS, near)
+        if near:  # the agent pointed at something: only fields inside it count, else drop onto it
+            inputs = [i for i in inputs if i["depth"] < 99]
+        if not inputs:
+            return None
+        ok = [
+            i
+            for i in inputs
+            if (len(files) == 1 or i["multiple"]) and all(safety.accepts(i["accept"], f) for f in files)
+        ]
+        if not ok:
+            self._fits(files, inputs[-1])
+        best = min(ok, key=lambda i: (i["depth"], not i["inDialog"], -i["i"]))
+        await human.pause(0.8, 2.0, s.slow)
+        target = folder if (best["folder"] and folder) else files  # folder pickers want the folder itself
+        await s.active.locator(f'[data-as-file="{best["i"]}"]').set_input_files(target)
+        return "the page's upload field"
+
+    async def _drop(self, s: Session, ref: str, loc: Locator, files: list) -> str:
+        total = sum(f.stat().st_size for f in files)
+        if total > MAX_DROP_BYTES:
+            raise safety.Blocked(
+                f"{ref} isn't an upload button, and dropping {_size(total)} onto it is too much "
+                "(50 MB max for drag-and-drop). Find the site's upload button instead."
+            )
+        payload = [
+            {
+                "name": f.name,
+                "type": mimetypes.guess_type(f.name)[0] or "application/octet-stream",
+                "b64": base64.b64encode(f.read_bytes()).decode(),
+                "mtime": int(f.stat().st_mtime * 1000),
+            }
+            for f in files
+        ]
+        await human.pause(0.6, 1.5, s.slow)
+        await loc.evaluate(DROP_JS, payload)
+        return f"dragging them onto {ref}"
 
     async def type(
         self, s: Session, ref: str | None, label: str | None, text: str, submit: bool, confirmed: bool
@@ -841,6 +993,14 @@ class BrowserManager:
                 "⚠ This page shows a CAPTCHA or bot check. Don't try to solve it: call handoff so the user "
                 "can finish it in a visible window."
             )
+        if info["uploads"]:
+            ups = info["uploads"]
+            kinds = sorted({u["accept"] for u in ups if u["accept"]})
+            notes.append(
+                f"📎 {len(ups)} upload field(s) on this page"
+                + (f" (accepts {'; '.join(kinds)[:120]})" if kinds else "")
+                + ". To attach files the user gave you, call upload_files."
+            )
         if info["signIn"]:
             notes.append(
                 "⚠ This looks like a sign-in page. If you expected to be logged in, the saved session has "
@@ -925,3 +1085,11 @@ def _prune_old(folder, days: int) -> None:
                 shutil.rmtree(d) if d.is_dir() else d.unlink()
         except OSError:
             pass
+
+
+def _size(n: int) -> str:
+    for unit in ("B", "KB", "MB", "GB"):
+        if n < 1024 or unit == "GB":
+            return f"{n:.0f} {unit}" if unit == "B" else f"{n:.1f} {unit}"
+        n /= 1024
+    return ""
