@@ -1,0 +1,30 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.romaklym/assertify",
+  "title": "Assertify",
+  "description": "Let AI agents use any website you're logged in to. Sessions stay encrypted on your machine.",
+  "version": "0.1.0",
+  "websiteUrl": "https://github.com/romaklym/assertify-mcp",
+  "repository": {
+    "url": "https://github.com/romaklym/assertify-mcp",
+    "source": "github"
+  },
+  "icons": [
+    {
+      "src": "https://raw.githubusercontent.com/romaklym/assertify-mcp/main/assets/icon.png",
+      "mimeType": "image/png",
+      "sizes": ["256x256"]
+    }
+  ],
+  "packages": [
+    {
+      "registryType": "mcpb",
+      "identifier": "https://github.com/romaklym/assertify-mcp/releases/download/v0.1.0/assertify.mcpb",
+      "version": "0.1.0",
+      "fileSha256": "ec8c39d5317a9bc746f2419ba288c2b9ebe071adf5b781eaa4361dcbdbe82b24",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}
