@@ -220,3 +220,13 @@ def test_iphone_ocr_gives_tap_points(tmp_path, monkeypatch):
     assert "Messages" in els and "Send" in els
     send = els["Send"]
     assert 1180 < send.x < 1280 and 600 < send.y < 640  # 2x pixels mapped back to screen points
+
+
+def test_iphone_keystrokes_map_us_layout():
+    assert phone._keystroke("a") == (0, False)
+    assert phone._keystroke("Z") == (6, True)
+    assert phone._keystroke("!") == (18, True)
+    assert phone._keystroke("?") == (44, True)
+    assert phone._keystroke("é") is None
+    with pytest.raises(phone.PhoneError, match="Nothing was typed"):
+        phone.IPhone.type(object.__new__(phone.IPhone), "café")

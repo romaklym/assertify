@@ -411,11 +411,29 @@ _MAC_KEYS = {
     "right": 124,
     "down": 125,
     "up": 126,
-    "1": 18,
-    "2": 19,
-    "3": 20,
-    "v": 9,
 }
+# US keyboard layout: character -> keycode. Shifted characters add shift.
+_US = dict(zip("asdfhgzxcv", (0, 1, 2, 3, 4, 5, 6, 7, 8, 9), strict=True))
+_US.update(zip("bqweryt", (11, 12, 13, 14, 15, 16, 17), strict=True))
+_US.update({"o": 31, "u": 32, "i": 34, "p": 35, "l": 37, "j": 38, "k": 40, "n": 45, "m": 46})
+_US.update(zip("1234567890", (18, 19, 20, 21, 23, 22, 26, 28, 25, 29), strict=True))
+_US.update({".": 47, ",": 43, "/": 44, ";": 41, "'": 39, "[": 33, "]": 30, "\\": 42})
+_US.update({"-": 27, "=": 24, "`": 50, " ": 49})
+_SHIFTED = dict(zip('!@#$%^&*()_+:"<>?~{}|', "1234567890-=;',./`[]\\", strict=True))
+_MAC_KEYS.update({c: k for c, k in _US.items() if c != " "})
+
+
+def _keystroke(ch: str) -> tuple[int, bool] | None:
+    """(keycode, needs shift) for one character on a US layout, or None."""
+    if ch in _US:
+        return _US[ch], False
+    if ch.isupper() and ch.lower() in _US:
+        return _US[ch.lower()], True
+    if ch in _SHIFTED:
+        return _US[_SHIFTED[ch]], True
+    return None
+
+
 _MOD_KEYS = {"cmd": 55, "shift": 56}
 
 
@@ -436,12 +454,21 @@ def mirroring_installed() -> bool:
     return sys.platform == "darwin" and Path(MIRROR_APP).exists()
 
 
-def _accessibility_trusted() -> bool:
+def _accessibility_trusted(prompt: bool = False) -> bool:
+    """Whether macOS lets this app send clicks. prompt=True also shows macOS's own "allow" dialog."""
     import ctypes
 
     lib = ctypes.cdll.LoadLibrary("/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices")
-    lib.AXIsProcessTrusted.restype = ctypes.c_bool
-    return bool(lib.AXIsProcessTrusted())
+    if not prompt:
+        lib.AXIsProcessTrusted.restype = ctypes.c_bool
+        return bool(lib.AXIsProcessTrusted())
+    import objc
+    from Foundation import NSDictionary
+
+    opts = NSDictionary.dictionaryWithObject_forKey_(True, "AXTrustedCheckOptionPrompt")
+    lib.AXIsProcessTrustedWithOptions.restype = ctypes.c_bool
+    lib.AXIsProcessTrustedWithOptions.argtypes = [ctypes.c_void_p]
+    return bool(lib.AXIsProcessTrustedWithOptions(objc.pyobjc_id(opts)))
 
 
 class IPhone:
@@ -500,27 +527,31 @@ class IPhone:
     def focus(self) -> dict:
         """Input only reaches the phone while the mirroring window is in front."""
         win = self.require()
-        if not _accessibility_trusted():
+        if not _accessibility_trusted() and not _accessibility_trusted(prompt=True):
             raise PhoneError(
-                "macOS hasn't given this app Accessibility access, so it can't tap the iPhone. Ask the user to "
-                "allow it in System Settings > Privacy & Security > Accessibility for the app running Assertify "
-                "(e.g. Claude or Terminal), then restart it."
+                "macOS hasn't given this app Accessibility access, so it can't tap the iPhone. macOS just showed "
+                "a prompt: ask the user to allow it in System Settings > Privacy & Security > Accessibility for "
+                "the app running Assertify (e.g. Claude or Terminal), then restart that app."
             )
-        from AppKit import NSWorkspace
-
         app = self._app()
-        for _ in range(25):
-            front = NSWorkspace.sharedWorkspace().frontmostApplication()
-            if front and front.bundleIdentifier() == MIRROR_BUNDLE:
+        for attempt in range(40):
+            if self._in_front(app.processIdentifier()):
                 return self.window() or win
-            app.activateWithOptions_(1 << 1)
-            time.sleep(0.08)
-        subprocess.run(["open", "-a", MIRROR_APP], capture_output=True)
-        time.sleep(0.6)
-        front = NSWorkspace.sharedWorkspace().frontmostApplication()
-        if not (front and front.bundleIdentifier() == MIRROR_BUNDLE):
-            raise PhoneError("Couldn't bring iPhone Mirroring to the front, so nothing was sent to the phone.")
-        return self.window() or win
+            if attempt in (0, 10):
+                app.activateWithOptions_(1 << 1)
+            if attempt == 15:  # macOS may ignore activation from a background process; Launch Services won't
+                subprocess.run(["open", "-a", MIRROR_APP], capture_output=True)
+            time.sleep(0.1)
+        raise PhoneError("Couldn't bring iPhone Mirroring to the front, so nothing was sent to the phone.")
+
+    def _in_front(self, pid: int) -> bool:
+        """True when the topmost normal window belongs to iPhone Mirroring (live, unlike NSWorkspace in a script)."""
+        Q = self.Q
+        opts = Q.kCGWindowListOptionOnScreenOnly | Q.kCGWindowListExcludeDesktopElements
+        for w in Q.CGWindowListCopyWindowInfo(opts, Q.kCGNullWindowID) or []:
+            if w.get("kCGWindowLayer", 1) == 0:
+                return w.get("kCGWindowOwnerPID") == pid
+        return False
 
     # --- reading ---
 
@@ -689,19 +720,32 @@ class IPhone:
         time.sleep(0.3)
 
     def type(self, text: str) -> None:
-        """Paste through the Mac clipboard: exact text, no autocorrect, any language or emoji."""
+        """Type key by key on a US layout. (Pasting with cmd+v doesn't reach the phone.)"""
+        bad = sorted({c for c in text if c != "\n" and _keystroke(c) is None})
+        if bad:
+            raise PhoneError(
+                f"Can't type {''.join(bad)!r} on iPhone: only plain English letters, digits and "
+                "keyboard symbols can be typed through iPhone Mirroring. Nothing was typed."
+            )
         self.focus()
-        for i, line in enumerate(text.split("\n")):
-            if i:
-                self.press("return")
-            if not line:
+        Q = self.Q
+        for ch in text:
+            if ch == "\n":
+                self._key(36, True)
+                self._key(36, False)
+                time.sleep(0.08)
                 continue
-            subprocess.run(["pbcopy"], input=line.encode())
-            if subprocess.run(["pbpaste"], capture_output=True).stdout != line.encode():
-                raise PhoneError("The Mac clipboard didn't take the text, so nothing was pasted.")
-            time.sleep(0.15)
-            self.press("cmd+v")
-            time.sleep(0.2)
+            code, shift = _keystroke(ch)
+            flags = Q.kCGEventFlagMaskShift if shift else 0
+            if shift:
+                self._key(56, True, flags)
+            self._key(code, True, flags)
+            time.sleep(0.02)
+            self._key(code, False, flags)
+            if shift:
+                self._key(56, False)
+            time.sleep(0.05)
+        time.sleep(0.3)
 
     def key(self, key: str) -> None:
         k = key.lower()
@@ -717,7 +761,12 @@ class IPhone:
 
     def open_app(self, name: str) -> str:
         self.press("cmd+3")  # Spotlight on the phone
-        time.sleep(0.6)
+        time.sleep(0.8)
+        # The search field isn't focused after cmd+3: tap it so keystrokes land there.
+        field = next((e for e in self.elements() if e.label.strip().lower().endswith("search")), None)
+        if field:
+            self.tap(field.x, field.y)
+            time.sleep(0.4)
         self.type(name)
         time.sleep(0.8)
         self.press("return")

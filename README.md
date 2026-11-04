@@ -291,7 +291,7 @@ The agent calls `phone_snapshot`, gets an outline like `[p4] button "Chats"`, th
 | **Needs** | [adb](https://developer.android.com/tools/releases/platform-tools) (`brew install android-platform-tools`), USB debugging on, the phone plugged in (or wireless debugging) | A Mac with macOS 15+, iPhone on iOS 18+, the **iPhone Mirroring** app connected |
 | **Works on** | macOS, Windows, Linux | macOS |
 | **Reads the screen with** | Android's accessibility tree (exact text and buttons) | Apple's Vision OCR of the mirrored screen (text only; icons via `phone_screenshot` + x/y) |
-| **Types with** | `adb input` (plain ASCII) | Paste through the Mac clipboard (any language, no autocorrect); the text stays on your clipboard |
+| **Types with** | `adb input` (plain ASCII) | Real keystrokes on a US layout (English letters, digits, symbols); the phone's autocorrect may still apply |
 | **Permissions** | Accept the "Allow USB debugging" prompt once | Allow **Accessibility** and **Screen Recording** for the app running Assertify (Claude, Terminal…) in System Settings → Privacy & Security |
 
 Good to know:

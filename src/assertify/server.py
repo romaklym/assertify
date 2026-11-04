@@ -498,7 +498,7 @@ async def phone_type(
     """Type text on the phone. Pass ref (or the field's visible text as `field`) to tap the field first;
     otherwise it types into the focused field. submit=true presses Enter afterwards, which needs
     confirmed=true unless the field is a search box. Password, PIN and code fields are refused: the user
-    types those. On iPhone the text is pasted through the Mac clipboard and stays there afterwards."""
+    types those. On iPhone it is typed key by key (English letters, digits and symbols only)."""
     if not text:
         raise ToolError("Pass the text to type.")
     note = await asyncio.to_thread(phones.type, device, text, ref, field, submit, confirmed)
