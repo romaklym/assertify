@@ -21,6 +21,8 @@ dependencies = [
     "playwright>=1.51",
     "cryptography>=42",
     "keyring>=25",
+    "pyobjc-framework-Quartz>=10; sys_platform == 'darwin'",
+    "pyobjc-framework-Vision>=10; sys_platform == 'darwin'",
 ]
 
 [project.urls]

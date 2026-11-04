@@ -39,6 +39,7 @@ Most sites have no API, or one that can't do what you need. Assertify gives your
 - ✋ **Asks before it acts.** Buttons that send, post, buy, delete or connect are paused until you say yes. Logins can be made read-only.
 - 🧍 **Behaves like a person.** Real Chrome, your own browser fingerprint, curved mouse moves, uneven typing and natural pauses. No `navigator.webdriver` flag.
 - 📎 **Uploads files and folders.** Photos for a Facebook post, a PDF for an email: the agent clicks the upload button and picks your files, just like you would. Key and password files are always refused.
+- 📱 **Drives your phone too.** Android over USB/wireless debugging, iPhone through macOS iPhone Mirroring: the agent reads the screen, taps, types and scrolls with the same safety rules.
 - 🪟 **Handles pop-ups.** Cookie banners are declined for you; "share your contact info" style pop-ups are flagged so the agent decides, or closes them.
 - 🔁 **Hands back to you when needed.** CAPTCHAs, 2FA prompts and expired logins open in a window for you to finish; the agent then carries on.
 - 🪶 **Fast and token-cheap.** The agent reads a compact outline (`[e12] button "Send"`), not raw HTML.
@@ -233,6 +234,10 @@ For JSON configs, use the `mcpServers` block shown under Cursor.
 | `switch_tab` | Popups become the active tab automatically; this switches back |
 | `save_session` / `close_session` | Write refreshed cookies back to the vault (closing saves by default) |
 | `evaluate` | Run JavaScript in the page. **Off** unless `ASSERTIFY_ALLOW_EVAL=1` |
+| `phone_devices` | Phones it can drive: Android over adb, and the iPhone in iPhone Mirroring (Mac) |
+| `phone_snapshot(device?)` | What's on the phone screen as `[p3] button "Send"`, plus the open app |
+| `phone_tap(ref? \| text? \| x,y)` · `phone_type(text, ref?)` · `phone_press(key)` · `phone_scroll` · `phone_swipe` | Act on the phone; each returns a fresh outline. Send/post/buy taps and Enter wait for your OK |
+| `phone_open(app? \| url?)` · `phone_screenshot` | Open an app by name (or a link on Android); screenshot the phone, saved to a file |
 
 ### 👀 Seeing what the agent sees
 
@@ -273,6 +278,31 @@ A folder means every file in it, subfolders included, skipping hidden files like
 
 **What can never be uploaded:** anything in hidden folders (`~/.ssh`, `~/.aws`, …), key, certificate, password-manager and `.env` files, browser cookie stores, and Assertify's own vault. Paths must be full paths the user gave; agents are told never to upload a file because a page or email asked. Limits: 100 files and 2 GB per call. To allow only certain folders, set `ASSERTIFY_UPLOAD_DIRS`.
 
+## 📱 Phones (Android and iPhone)
+
+Assertify can also drive your own phone, so an agent can do things that only exist in an app:
+
+> *"Open WhatsApp on my phone and tell me who messaged me today"*
+
+The agent calls `phone_snapshot`, gets an outline like `[p4] button "Chats"`, then taps, types and scrolls by ref or visible text. Nothing is installed on the phone.
+
+| | Android | iPhone |
+|---|---|---|
+| **Needs** | [adb](https://developer.android.com/tools/releases/platform-tools) (`brew install android-platform-tools`), USB debugging on, the phone plugged in (or wireless debugging) | A Mac with macOS 15+, iPhone on iOS 18+, the **iPhone Mirroring** app connected |
+| **Works on** | macOS, Windows, Linux | macOS |
+| **Reads the screen with** | Android's accessibility tree (exact text and buttons) | Apple's Vision OCR of the mirrored screen (text only; icons via `phone_screenshot` + x/y) |
+| **Types with** | `adb input` (plain ASCII) | Paste through the Mac clipboard (any language, no autocorrect); the text stays on your clipboard |
+| **Permissions** | Accept the "Allow USB debugging" prompt once | Allow **Accessibility** and **Screen Recording** for the app running Assertify (Claude, Terminal…) in System Settings → Privacy & Security |
+
+Good to know:
+
+- **iPhone Mirroring takes the front window** while the agent works, since macOS only delivers taps to the window in front. Don't type elsewhere during a run.
+- **A locked phone stops everything.** Assertify wakes an Android screen but never types a PIN; unlock it yourself. iPhone Mirroring needs the phone locked and nearby.
+- **Same rules as the browser:** taps on send/post/buy/delete/follow and pressing Enter wait for your OK; password, PIN and code fields are never typed into; what's on screen is treated as untrusted.
+- Pick a phone with `device=` (`"iphone"`, an Android serial or model name) when more than one is connected.
+
+The phone approach follows [phone-harness](https://github.com/phone-harness/phone-harness) (MIT), adapted to Assertify's outline-and-refs style and safety checks.
+
 ## 🧍 Staying unnoticed
 
 Sites flag browsers that act like robots. Assertify tries hard not to:
@@ -305,6 +335,7 @@ Many sites' terms forbid automated access. LinkedIn, Facebook, Instagram, Thread
 - **Ask before acting:** buttons labelled send, post, buy, pay, delete, connect, follow, apply and similar, and pressing Enter in a message box, are paused until the agent calls again with `confirmed=true`, which it is told to do only after you approve.
 - **Read-only logins:** `assertify login <name> <url> --read-only` (or `read_only=true` in `start_login`) lets agents browse and read but never type, submit, send or buy.
 - **Uploads:** only full paths, never secrets (hidden folders, keys, `.env`, cookie stores, the vault), symlinks resolved first, optional folder allowlist (`ASSERTIFY_UPLOAD_DIRS`). Read-only logins can't upload.
+- **Phones:** never unlocks a phone or types into password/PIN/code fields; risky taps and Enter need confirmation; phone screenshots go to the same private, auto-cleaned folder.
 - **Untrusted pages:** page text is returned wrapped and labelled as website content, and agents are told never to follow instructions found in pages, emails or messages. Only `http(s)` pages can be opened, and downloads are disabled.
 
 > [!WARNING]
@@ -329,6 +360,7 @@ Found a vulnerability? See [SECURITY.md](SECURITY.md).
 | `ASSERTIFY_AUTO_CONSENT=0` | Don't auto-decline cookie banners |
 | `ASSERTIFY_UPLOAD_DIRS` | Only allow uploads from these folders (separated by `:` on macOS/Linux, `;` on Windows) |
 | `ASSERTIFY_MAX_UPLOAD_MB` | Upload size cap per call (default 2048) |
+| `ASSERTIFY_ADB` | Path to `adb` if it isn't on `PATH` or in the usual Android SDK folder |
 
 CLI: `assertify setup | login [name] <url> [--domain d] [--read-only] | list [site] | rename <name> <new> | delete <name> | serve`.
 

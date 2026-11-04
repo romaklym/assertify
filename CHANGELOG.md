@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Phones: new `phone_*` tools drive an Android phone over adb (macOS, Windows, Linux) or an iPhone through macOS iPhone Mirroring. The agent reads the screen as an outline with `[pN]` refs (Android accessibility tree; iPhone via Apple Vision OCR), and taps, types, scrolls, swipes, presses keys and opens apps.
+- Same safety rules as the browser: send/post/buy/delete taps and Enter need confirmation, password/PIN/code fields are never typed into, a locked phone is never unlocked.
+- macOS installs now include pyobjc (Quartz, Vision) for iPhone control.
+
 ## 0.4.0 (2026-11-02)
 
 - New `upload_files` tool: attach files or whole folders (photos for a post, a PDF for an email). Uses the site's file dialog like a person, else its upload field, else drag-and-drop. Respects single-file fields and file-type limits.
