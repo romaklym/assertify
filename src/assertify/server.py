@@ -121,6 +121,8 @@ async def _after(sid: str, note: str) -> Result:
 @tool(read_only=True)
 async def list_profiles(site: str | None = None) -> list[dict]:
     """List saved website logins: name, account (e.g. the email), site, allowed domains, read-only.
+    A login is cookies plus the site's storage (localStorage, IndexedDB, sessionStorage); many apps
+    (Discord, WhatsApp Web, Teams) keep the sign-in in storage, so a low cookie count is normal.
 
     site: only logins for this site, e.g. "google.com" or "linkedin". A site can have several accounts.
     """
@@ -239,7 +241,7 @@ async def open_sessions(site: str | None = None, profiles: list[str] | None = No
 
 @tool
 async def close_session(session_id: str, save: bool = True) -> str:
-    """Close a session. With save=True (default), refreshed cookies are written back to the vault."""
+    """Close a session. With save=True (default), the refreshed login (cookies and site storage) is written back to the vault."""
     await manager.close_session(session_id, save=save)
     return "Closed."
 
@@ -247,15 +249,14 @@ async def close_session(session_id: str, save: bool = True) -> str:
 @tool
 async def save_session(session_id: str) -> str:
     """Write the session's current cookies/storage back to the encrypted vault."""
-    n = await manager.save_session(session_id)
-    return f"Saved ({n} cookies)."
+    return f"Saved ({await manager.save_session(session_id)})."
 
 
 @tool
 async def handoff(session_id: str, reason: str = "") -> str:
     """Let the USER take over in a visible window: CAPTCHAs, 2FA prompts, expired logins, anything
     you shouldn't or can't do. Opens the current page in a window on their screen; when they close it,
-    this session gets their fresh cookies. Then call snapshot."""
+    this session gets their fresh login. Then call snapshot."""
     s = manager.get(session_id)
     await manager.save_session(session_id)
     msg = await manager.start_login(s.profile, s.active.url, [], handoff=True)

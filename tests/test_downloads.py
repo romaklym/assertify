@@ -9,8 +9,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
 
-from assertify import files, storage
-from assertify.browser import BrowserManager, _disposition_name
+from assertify import files, install, storage
+from assertify.browser import BrowserManager, PendingLogin, _disposition_name
 from assertify.vault import Vault
 
 CSV = b"name,amount\nAlice,10\nBob,20\n"
@@ -49,6 +49,17 @@ PAGES = {
 <script>sessionStorage.setItem('tab', sessionStorage.getItem('tab') || 'fresh')</script>""",
     ),
     "/page": ("text/html", b"<!doctype html><title>Page</title><p>just a page</p>"),
+    # Like Discord: the sign-in token lives in localStorage, and the app hides localStorage once loaded.
+    "/app": (
+        "text/html",
+        b"""<!doctype html><title>Chat</title><body><script>
+const ls = localStorage, token = ls.getItem('token');
+Object.defineProperty(window, 'localStorage', {get() { throw new Error('hidden'); }});
+const show = (t) => { document.body.innerHTML = t ? '<h1>Signed in</h1>' : '<h1>Log in</h1><button>Log in</button>';
+  const b = document.querySelector('button'); if (b) b.onclick = () => { ls.setItem('token', '"t0k"'); show(1); }; };
+show(token);
+</script></body>""",
+    ),
     "/report.xlsx": ("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", _xlsx()),
 }
 
@@ -123,6 +134,14 @@ def test_names_are_made_safe():
     assert _disposition_name('attachment; filename="q1 report.csv"') == "q1 report.csv"
 
 
+def test_unreadable_storage_keeps_what_was_saved():
+    login = PendingLogin("t", None, None, {})
+    login.keep("https://a.test", [{"name": "token", "value": "x"}], [], None)
+    login.keep("https://a.test", None, None, None)  # the page hid its storage this time
+    assert login.local_storage["https://a.test"] == [{"name": "token", "value": "x"}]
+    assert storage.summary(login.state()) == {"local_storage_items": 1}
+
+
 def test_extras_stay_out_of_playwright_state():
     pw, extras = storage.split({"cookies": [], "origins": [], "http_credentials": {"username": "u"}, "x": 1})
     assert pw == {"cookies": [], "origins": []} and extras == {"http_credentials": {"username": "u"}}
@@ -142,6 +161,32 @@ def test_http_auth_from_the_vault(site):
 
 def test_session_storage_is_saved_and_restored(site):
     asyncio.run(asyncio.wait_for(_session_storage_is_saved_and_restored(site), 90))
+
+
+def test_login_kept_in_hidden_local_storage(site, monkeypatch):
+    real = install.launch
+    monkeypatch.setattr("assertify.browser.native_supported", lambda: False)
+    monkeypatch.setattr("assertify.browser.launch", lambda pw, headless=True, **kw: real(pw, headless=True, **kw))
+    asyncio.run(asyncio.wait_for(_login_kept_in_hidden_local_storage(site), 90))
+
+
+async def _login_kept_in_hidden_local_storage(site):
+    m = BrowserManager()
+    try:
+        await m.start_login("t", site + "/app", ["127.0.0.1"])
+        page = m.logins["t"].context.pages[0]
+        await page.wait_for_selector("button")
+        await page.click("button")  # the user signs in
+        await asyncio.sleep(2)  # a backup tick reads it while the window is open
+        result = await m.complete_login("t")
+        assert "1 localStorage items" in result
+        state, _ = Vault().load("t")
+        assert state["origins"][0]["localStorage"] == [{"name": "token", "value": '"t0k"'}]
+        assert Vault().list()[0]["local_storage_items"] == 1
+        s = await m.open_session("t")
+        assert "Signed in" in await s.active.inner_text("body")
+    finally:
+        await m.shutdown()
 
 
 async def _download_by_click_url_and_latest(site):

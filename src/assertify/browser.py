@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import json
 import mimetypes
 import os
 import random
@@ -30,7 +31,7 @@ from playwright.async_api import TimeoutError as PlaywrightTimeout
 
 from . import files, human, prompt, safety, storage
 from .install import launch
-from .native import NativeChrome, find_chrome, native_supported
+from .native import NativeChrome, find_chrome, isolated_eval, native_supported
 from .vault import Vault, VaultError, vault_home
 
 VIEWPORT = {"width": 1280, "height": 900}
@@ -425,12 +426,15 @@ class PendingLogin:
         extras = {**self.extras, "session_storage": {o: v for o, v in self.session_storage.items() if v}}
         return storage.merge({"cookies": self.cookies, "origins": origins}, extras)
 
-    def keep(self, origin: str, local: list, session: list, idb: list | None) -> None:
-        """Store what one tab's storage looked like (from storage.STORAGE_JS)."""
-        if not origin.startswith("http"):
+    def keep(self, origin: str, local: list | None, session: list | None, idb: list | None) -> None:
+        """Store what one tab's storage looked like (from storage.STORAGE_JS). None means it couldn't
+        be read, so what was captured before stays."""
+        if not origin or not origin.startswith("http"):
             return
-        self.local_storage[origin] = local
-        self.session_storage[origin] = session
+        if local is not None:
+            self.local_storage[origin] = local
+        if session is not None:
+            self.session_storage[origin] = session
         if idb is not None:
             self.indexed_db[origin] = storage.clean_idb(idb)
 
@@ -594,7 +598,7 @@ class BrowserManager:
             return
         for p in list(login.context.pages):
             try:
-                login.keep(*await p.evaluate(storage.STORAGE_JS, with_idb))
+                login.keep(*await _isolated(login.context, p, f"({storage.STORAGE_JS})({str(with_idb).lower()})"))
                 hits = await p.evaluate(ACCOUNT_JS)
             except Exception:
                 continue
@@ -617,7 +621,7 @@ class BrowserManager:
         except Exception:
             login.done.set()
             return
-        if not (final or with_idb):
+        if not (final or with_idb or login.ticks % 3 == 1):  # storage every ~5s, IndexedDB every ~15s
             return
         if final:
             js = (
@@ -626,7 +630,7 @@ class BrowserManager:
             )
             skip = None
         else:
-            js = f"({storage.STORAGE_JS})(true)"
+            js = f"({storage.STORAGE_JS})({str(with_idb).lower()})"
             skip = _sign_in_url
         for _, value in await n.evaluate_pages(js, skip=skip):
             if not value:
@@ -685,8 +689,10 @@ class BrowserManager:
         state = login.state()
         if not save:
             login.error = "cancelled"
-        elif not state["cookies"]:
-            login.error = "No cookies were captured, so nothing was saved. Run the login again."
+        elif not state["cookies"] and not state["origins"] and not state.get("session_storage"):
+            login.error = (
+                "Nothing was captured (no cookies or site storage), so nothing was saved. Run the login again."
+            )
         else:
             account = login.account()
             note = ""
@@ -703,7 +709,7 @@ class BrowserManager:
                 pass
             self.vault.save(login.profile, state, login.meta)
             who = f" for {account}" if account else ""
-            login.result = f"Saved encrypted session {login.profile!r}{who} ({len(state['cookies'])} cookies).{note}"
+            login.result = f"Saved encrypted session {login.profile!r}{who} ({_contents(state)}).{note}"
             if unfinished:
                 login.result += (
                     f" ⚠ The login window was still on a sign-in page ({stuck[0]}), so the login may not have"
@@ -738,6 +744,7 @@ class BrowserManager:
                 await s.context.clear_cookies()
                 await s.context.add_cookies(state["cookies"])
                 if s.active and not s.active.is_closed():
+                    await _put_local_storage(s.context, s.active, state)
                     await s.active.reload(wait_until="domcontentloaded")
                 s.events.append("The user finished in the visible window; this session now has their fresh login.")
             except Exception as e:
@@ -933,7 +940,7 @@ class BrowserManager:
             raise VaultError("Session has no open tab. Close it and open a new one.")
         return s
 
-    async def save_session(self, sid: str) -> int:
+    async def save_session(self, sid: str) -> str:
         """Write refreshed cookies/tokens back to the vault."""
         s = self.sessions[sid]
         state = await s.context.storage_state(indexed_db=True)
@@ -950,8 +957,9 @@ class BrowserManager:
             if origin.startswith("http"):
                 tabs[origin] = items
         extras["session_storage"] = tabs
-        self.vault.save(s.profile, storage.merge(state, extras), s.meta)
-        return len(state.get("cookies", []))
+        merged = storage.merge(state, extras)
+        self.vault.save(s.profile, merged, s.meta)
+        return _contents(merged)
 
     async def close_session(self, sid: str, save: bool = True) -> None:
         s = self.sessions.get(sid)
@@ -1548,6 +1556,41 @@ IDP_HOSTS = re.compile(
     r"id\.atlassian\.com|okta\.com|auth0\.com|login\.)",
     re.I,
 )
+
+
+async def _isolated(context: BrowserContext, page: Page, expression: str):
+    """Run JS in an isolated world of the page (see native.isolated_eval): sites that hide or
+    delete window.localStorage, like Discord, can't keep it from us there."""
+    cdp = await context.new_cdp_session(page)
+    try:
+        return await isolated_eval(lambda m, p=None: cdp.send(m, p or {}), expression)
+    finally:
+        try:
+            await cdp.detach()
+        except Exception:
+            pass
+
+
+async def _put_local_storage(context: BrowserContext, page: Page, state: dict) -> None:
+    """Write a fresh login's localStorage into an open tab of that site, before it's reloaded."""
+    origin = urlparse(page.url)
+    origin = f"{origin.scheme}://{origin.netloc}"
+    items = next((o.get("localStorage") for o in state.get("origins", []) if o["origin"] == origin), None)
+    if items:
+        js = f"(() => {{ for (const i of {json.dumps(items)}) localStorage.setItem(i.name, i.value); }})()"
+        await _isolated(context, page, js)
+
+
+def _contents(state: dict) -> str:
+    """'7 cookies, 12 localStorage items' for a saved state (counts only)."""
+    parts = [f"{len(state.get('cookies', []))} cookies"]
+    labels = {
+        "local_storage_items": "localStorage items",
+        "indexed_db_databases": "IndexedDB databases",
+        "session_storage_items": "sessionStorage items",
+    }
+    parts += [f"{n} {labels[k]}" for k, n in storage.summary(state).items()]
+    return ", ".join(parts)
 
 
 def _sign_in_url(url: str) -> bool:

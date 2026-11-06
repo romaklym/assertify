@@ -25,6 +25,8 @@ from typing import Any
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 
+from . import storage
+
 MAGIC = b"AS1"
 KEYRING_SERVICE = "assertify-mcp"
 KEYRING_USER = "master-key"
@@ -114,7 +116,7 @@ class Vault:
         for p in sorted(self.dir.glob("*.enc")):
             try:
                 state, meta = self.load(p.stem)
-                meta = {**meta, "cookies": len(state.get("cookies", []))}
+                meta = {**meta, "cookies": len(state.get("cookies", [])), **storage.summary(state)}
             except VaultError as e:
                 meta = {"name": p.stem, "error": str(e)}
             out.append(meta)

@@ -8,14 +8,14 @@ from __future__ import annotations
 
 import json
 
-# Runs in a page: [origin, localStorage, sessionStorage, IndexedDB or null].
+# Runs in a page (in an isolated world, see native.isolated_eval): [origin, localStorage,
+# sessionStorage, IndexedDB], each null when it couldn't be read (keep what was saved before).
 # IndexedDB is dumped in Playwright's storage_state format. A database holding values that
-# don't survive JSON (Blobs, Dates, ArrayBuffers...) is left out rather than saved half-broken,
-# and null means "couldn't read it" (keep what was saved before).
+# don't survive JSON (Blobs, Dates, ArrayBuffers...) is left out rather than saved half-broken.
 STORAGE_JS = r"""
 async (withIdb) => {
-  const entries = (s) => { try { return Object.entries(s).map(([name, value]) => ({name, value})); } catch (e) { return []; } };
-  const out = [location.origin, entries(localStorage), entries(sessionStorage), null];
+  const entries = (get) => { try { return Object.entries(get()).map(([name, value]) => ({name, value})); } catch (e) { return null; } };
+  const out = [location.origin, entries(() => localStorage), entries(() => sessionStorage), null];
   if (!withIdb || !self.indexedDB || !indexedDB.databases) return out;
   const plain = (v, depth) => {
     if (v === null || typeof v === 'string' || typeof v === 'boolean') return true;
@@ -104,6 +104,17 @@ def clean_idb(dbs: list) -> list:
                     if d.get(k) is None:
                         d.pop(k, None)
     return dbs
+
+
+def summary(state: dict) -> dict:
+    """How much a saved login holds besides cookies, for list_profiles (counts only, never values)."""
+    origins = state.get("origins", [])
+    out = {
+        "local_storage_items": sum(len(o.get("localStorage", [])) for o in origins),
+        "indexed_db_databases": sum(len(o.get("indexedDB", [])) for o in origins),
+        "session_storage_items": sum(len(v) for v in (state.get("session_storage") or {}).values()),
+    }
+    return {k: v for k, v in out.items() if v}
 
 
 def context_options(extras: dict) -> dict:

@@ -64,6 +64,21 @@ def _ws_url(port: int) -> str:
         return json.loads(r.read())["webSocketDebuggerUrl"]
 
 
+async def isolated_eval(send, expression: str):
+    """Evaluate JS in a fresh "isolated world" of a tab's main frame, over a CDP `send(method, params)`.
+    The page's scripts don't share its globals: a site that deletes window.localStorage (Discord) or
+    replaces built-ins can't hide anything from it, and can't see that it ran."""
+    frame = (await send("Page.getFrameTree"))["frameTree"]["frame"]["id"]
+    ctx = (await send("Page.createIsolatedWorld", {"frameId": frame, "worldName": "assertify"}))["executionContextId"]
+    res = await send(
+        "Runtime.evaluate",
+        {"expression": expression, "contextId": ctx, "returnByValue": True, "awaitPromise": True},
+    )
+    if res.get("exceptionDetails"):
+        raise RuntimeError(res["exceptionDetails"].get("text", "script failed"))
+    return res.get("result", {}).get("value")
+
+
 def native_supported() -> bool:
     """ASSERTIFY_LOGIN_WINDOW=playwright goes back to the automated login window."""
     return os.environ.get("ASSERTIFY_LOGIN_WINDOW", "").lower() != "playwright"
@@ -201,7 +216,8 @@ class NativeChrome:
     # ---- after the user is done ----
 
     async def evaluate_pages(self, expression: str, skip=None) -> list[tuple[str, object]]:
-        """Run JS in every open web tab, except those `skip(url)` picks: [(url, value)]."""
+        """Run JS in every open web tab, except those `skip(url)` picks: [(url, value)].
+        It runs in a separate world of the page, so the page's own scripts can't see it or get in its way."""
         out = []
         for t in await self.page_targets():
             if not t.get("url", "").startswith("http") or (skip and skip(t["url"])):
@@ -210,13 +226,11 @@ class NativeChrome:
                 sid = (await self.send("Target.attachToTarget", {"targetId": t["targetId"], "flatten": True}))[
                     "sessionId"
                 ]
-                res = await self.send(
-                    "Runtime.evaluate",
-                    {"expression": expression, "returnByValue": True, "awaitPromise": True},
-                    session=sid,
-                )
-                out.append((t["url"], res.get("result", {}).get("value")))
-                await self.send("Target.detachFromTarget", {"sessionId": sid})
+                try:
+                    value = await isolated_eval(lambda m, p=None, sid=sid: self.send(m, p, session=sid), expression)
+                finally:
+                    await self.send("Target.detachFromTarget", {"sessionId": sid})
+                out.append((t["url"], value))
             except Exception:
                 continue
         return out

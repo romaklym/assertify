@@ -74,7 +74,7 @@
     },
     {
       "name": "close_session",
-      "description": "Close a session. With save=True (default), refreshed cookies are written back to the vault."
+      "description": "Close a session. With save=True (default), the refreshed login (cookies and site storage) is written back to the vault."
     },
     {
       "name": "save_session",
