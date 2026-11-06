@@ -1,6 +1,6 @@
 [project]
 name = "assertify-mcp"
-version = "0.6.0"
+version = "0.6.1"
 description = "Let AI agents use any website you're logged in to. Log in once; the session stays encrypted on your machine."
 readme = "README.md"
 license = "MIT"

@@ -100,7 +100,7 @@ Then add Assertify to your AI client with one command (no download or clone need
 
 Other clients are under [Connect your AI client](#-connect-your-ai-client). Restart the client afterwards. The first start takes a minute while it installs, and Assertify downloads the browser it needs on first use (or uses your installed Chrome or Edge).
 
-To pin a version, add a tag: `git+https://github.com/romaklym/assertify@v0.6.0`.
+To pin a version, add a tag: `git+https://github.com/romaklym/assertify@v0.6.1`.
 
 <details>
 <summary><b>Install from source instead</b></summary>

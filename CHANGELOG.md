@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.1 (2026-11-06)
 
 - Downloads from files on another host now work (Discord attachments on `cdn.discordapp.com`, files on S3 or Google's content servers). Clicking such a link fetches the file directly instead of timing out, and `download(url=...)` accepts a file outside the login's domains when the page links to it, using the page's own signed link. Other off-site URLs are still refused, and off-site web pages aren't saved.
 - Fixed: a link that opens a new tab to a blocked domain no longer hangs the tab.
