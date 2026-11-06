@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Downloads from files on another host now work (Discord attachments on `cdn.discordapp.com`, files on S3 or Google's content servers). Clicking such a link fetches the file directly instead of timing out, and `download(url=...)` accepts a file outside the login's domains when the page links to it, using the page's own signed link. Other off-site URLs are still refused, and off-site web pages aren't saved.
+- Fixed: a link that opens a new tab to a blocked domain no longer hangs the tab.
+
 ## 0.6.0 (2026-11-06)
 
 - Sign in with Google (and other providers that block automated browsers): `start_login` now opens your installed Chrome as a normal window with a throwaway profile, instead of an automated one. Assertify only reads its cookies while you sign in, reads the pages once when you're done, then closes it and deletes the profile. Set `ASSERTIFY_LOGIN_WINDOW=playwright` for the old window; `ASSERTIFY_CHROME_PATH` picks the browser.

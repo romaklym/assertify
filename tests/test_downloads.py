@@ -14,6 +14,7 @@ from assertify.browser import BrowserManager, PendingLogin, _disposition_name
 from assertify.vault import Vault
 
 CSV = b"name,amount\nAlice,10\nBob,20\n"
+PDF = b"%PDF-1.4 not a real pdf"
 
 
 def _xlsx() -> bytes:
@@ -49,6 +50,15 @@ PAGES = {
 <script>sessionStorage.setItem('tab', sessionStorage.getItem('tab') || 'fresh')</script>""",
     ),
     "/page": ("text/html", b"<!doctype html><title>Page</title><p>just a page</p>"),
+    # Like a Discord DM: attachments live on another host (its CDN), as signed links that open in a new tab.
+    "/chat": (
+        "text/html",
+        b"""<!doctype html><title>DM</title><body><script>
+const cdn = 'http://localhost:' + location.port;
+document.body.innerHTML = `<a target="_blank" href="${cdn}/attachments/1/statement.pdf?ex=sig">statement.pdf</a>
+  <a target="_blank" href="${cdn}/page">elsewhere</a>`;
+</script></body>""",
+    ),
     # Like Discord: the sign-in token lives in localStorage, and the app hides localStorage once loaded.
     "/app": (
         "text/html",
@@ -102,6 +112,13 @@ class Site(BaseHTTPRequestHandler):
             self.send_header("Content-Disposition", 'attachment; filename="q1 report.csv"')
             self.end_headers()
             self.wfile.write(CSV)
+            return
+        if self.path.startswith("/attachments/"):  # a CDN: only signed links work
+            ok = self.path.endswith("?ex=sig")
+            self.send_response(200 if ok else 404)
+            self.send_header("Content-Type", "application/pdf")
+            self.end_headers()
+            self.wfile.write(PDF if ok else b"")
             return
         if self.path == "/intranet":
             want = "Basic " + base64.b64encode(b"tester:pw").decode()
@@ -183,6 +200,33 @@ def test_extras_stay_out_of_playwright_state():
 def test_download_by_click_and_url(site, monkeypatch):
     monkeypatch.setattr("assertify.browser.DOWNLOAD_WAIT", 2)
     asyncio.run(asyncio.wait_for(_download_by_click_url_and_latest(site), 90))
+
+
+def test_files_on_another_host(site, monkeypatch):
+    monkeypatch.setattr("assertify.browser.DOWNLOAD_WAIT", 5)
+    asyncio.run(asyncio.wait_for(_files_on_another_host(site), 90))
+
+
+async def _files_on_another_host(site):
+    _save(site + "/chat")
+    m = BrowserManager()
+    try:
+        s = await m.open_session("t")
+        await m.snapshot(s.id)
+        tabs = len(s.pages)
+        note, path, _ = await m.download(s, None, "statement.pdf", None, False)  # click: the tab can't go there
+        assert path.read_bytes() == PDF and "?" not in note and len(s.pages) == tabs
+        cdn = site.replace("127.0.0.1", "localhost") + "/attachments/1/statement.pdf"
+        note, path, _ = await m.download(s, None, None, cdn, False)  # url without the signature: the page's link
+        assert path.read_bytes() == PDF
+        with pytest.raises(Exception, match="doesn't link to that file"):
+            await m.download(s, None, None, cdn.replace("1/", "2/"), False)
+        await m.snapshot(s.id)
+        with pytest.raises(Exception, match="web page"):
+            await m.download(s, None, "elsewhere", None, False)
+        assert "/chat" in s.active.url
+    finally:
+        await m.shutdown()
 
 
 def test_http_auth_from_the_vault(site):

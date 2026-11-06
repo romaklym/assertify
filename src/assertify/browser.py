@@ -378,6 +378,7 @@ class Session:
     site: str | None = None  # set for sites known to restrict automation
     downloads: list = field(default_factory=list)  # Playwright downloads the pages started, newest last
     saved_downloads: int = 0
+    blocked: list = field(default_factory=list)  # off-domain page loads the domain fence stopped, newest last
 
     @property
     def read_only(self) -> bool:
@@ -936,7 +937,8 @@ class BrowserManager:
 
         async def guard(route: Route) -> None:
             req = route.request
-            if req.is_navigation_request() and req.frame.parent_frame is None and not host_allowed(req.url, allowed):
+            if req.is_navigation_request() and _top_level(req) and not host_allowed(req.url, allowed):
+                session.blocked = session.blocked[-9:] + [req.url]
                 await route.abort("blockedbyclient")
             else:
                 await route.fallback()
@@ -1356,35 +1358,37 @@ class BrowserManager:
             safety.check_url(url)
             allowed = s.meta.get("allowed_domains") or []
             if allowed and os.environ.get("ASSERTIFY_ALLOW_ANY_DOMAIN") != "1" and not host_allowed(url, allowed):
-                raise safety.Blocked(f"Blocked: {urlparse(url).hostname} is outside this login's allowed domains.")
-            self.budget.check(s.profile, s.site)
-            await self.before_load(s)
-            resp = await s.context.request.get(url, timeout=120_000, max_redirects=5, fail_on_status_code=False)
-            if not resp.ok:
-                raise VaultError(f"The site answered {resp.status} {resp.status_text} for {url}.")
-            body = await resp.body()
-            if len(body) > MAX_DOWNLOAD:
-                raise VaultError(f"The file is {_size(len(body))}; the limit is {_size(MAX_DOWNLOAD)}.")
-            headers = resp.headers
-            name = _disposition_name(headers.get("content-disposition", "")) or Path(urlparse(resp.url).path).name
-            ctype = headers.get("content-type", "")
-            if not Path(name).suffix and ctype:
-                name += mimetypes.guess_extension(ctype.split(";")[0].strip()) or ""
-            path = self._download_path(s, name)
-            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-            with os.fdopen(fd, "wb") as f:
-                f.write(body)
-            return f"Downloaded {path.name} ({_size(len(body))}) from {resp.url}", path, ctype
+                # Files often live on another host (Discord's cdn.discordapp.com, S3, Google's usercontent).
+                # Only links the site itself shows are fetched, so the agent can't be steered to send data elsewhere.
+                linked = await self._linked(s, url)
+                if not linked:
+                    raise safety.Blocked(
+                        f"Blocked: {urlparse(url).hostname} is outside this login's allowed domains, and the page "
+                        "doesn't link to that file. Pass the download link's ref/text instead, or its url exactly as "
+                        "the page shows it."
+                    )
+                return await self._fetch(s, linked, off_site=True)
+            return await self._fetch(s, url)
         before = len(s.downloads)
+        blocked_before = len(s.blocked)
         if ref or text:
             ref, loc = await self.locate(s, ref, text)
             role, label, submit, _ = s.items.get(ref, ["", "", False, ""])
             safety.check_click(role, label, submit, s.read_only, confirmed)
             self.budget.check(s.profile, s.site)
+            tabs = list(s.pages)
             await self._press(s, ref, loc)
             for _ in range(int(DOWNLOAD_WAIT * 10)):  # the file may only start after the site prepares it
                 if len(s.downloads) > before:
                     break
+                if len(s.blocked) > blocked_before:
+                    # The link opened the file on another host (e.g. Discord's CDN) and the domain fence stopped
+                    # the tab from going there. The site chose that link, so fetch the file directly instead.
+                    off = s.blocked[-1]
+                    for p in [p for p in s.pages if p not in tabs]:  # the empty tab the link tried to open
+                        await p.close()
+                    safety.check_url(off)
+                    return await self._fetch(s, off, off_site=True)
                 await asyncio.sleep(0.1)
             else:
                 raise VaultError(
@@ -1407,6 +1411,49 @@ class BrowserManager:
             path.unlink()
             raise VaultError(f"The file is {_size(size)}; the limit is {_size(MAX_DOWNLOAD)}.")
         return f"Downloaded {path.name} ({_size(size)})", path, mimetypes.guess_type(path.name)[0] or ""
+
+    async def _fetch(self, s: Session, url: str, off_site: bool = False) -> tuple[str, Path, str]:
+        """GET a file with the session's cookies (a host outside the login's domains gets none of them)."""
+        self.budget.check(s.profile, s.site)
+        await self.before_load(s)
+        resp = await s.context.request.get(url, timeout=120_000, max_redirects=5, fail_on_status_code=False)
+        if not resp.ok:
+            raise VaultError(f"The site answered {resp.status} {resp.status_text} for {_short(url)}.")
+        headers = resp.headers
+        ctype = headers.get("content-type", "")
+        if off_site and ctype.split(";")[0].strip().lower() == "text/html":
+            raise VaultError(
+                f"That link is a web page on {urlparse(resp.url).hostname}, not a file, and it's outside this "
+                "login's allowed domains."
+            )
+        body = await resp.body()
+        if len(body) > MAX_DOWNLOAD:
+            raise VaultError(f"The file is {_size(len(body))}; the limit is {_size(MAX_DOWNLOAD)}.")
+        name = _disposition_name(headers.get("content-disposition", "")) or Path(urlparse(resp.url).path).name
+        if not Path(name).suffix and ctype:
+            name += mimetypes.guess_extension(ctype.split(";")[0].strip()) or ""
+        path = self._download_path(s, name)
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "wb") as f:
+            f.write(body)
+        return f"Downloaded {path.name} ({_size(len(body))}) from {_short(resp.url)}", path, ctype
+
+    async def _linked(self, s: Session, url: str) -> str | None:
+        """`url` as a link on the open page (with the page's own query string, e.g. a signed CDN link), or None."""
+        want = urlparse(url)
+        found = []
+        for frame in s.active.frames:
+            try:
+                found += await frame.evaluate("() => Array.from(document.querySelectorAll('a[href]'), a => a.href)")
+            except Exception:
+                continue
+        if url in found:
+            return url
+        for href in found:
+            got = urlparse(href)
+            if (got.scheme, got.netloc, got.path) == (want.scheme, want.netloc, want.path) and not want.query:
+                return href
+        return None
 
     def _download_path(self, s: Session, name: str) -> Path:
         folder = self.downloads_dir / s.id
@@ -1577,6 +1624,19 @@ def _on_download(session: Session, download) -> None:
     session.events.append(
         f"The page started downloading {download.suggested_filename!r}. Call download (no ref) to save and read it."
     )
+
+
+def _top_level(req) -> bool:
+    """Whether a navigation loads a tab (not an iframe). A link opening a new tab asks before its frame exists."""
+    try:
+        return req.frame.parent_frame is None
+    except Exception:
+        return True
+
+
+def _short(url: str) -> str:
+    """A URL without its query string (signed links carry long tokens)."""
+    return url.split("?", 1)[0]
 
 
 def _disposition_name(header: str) -> str:
