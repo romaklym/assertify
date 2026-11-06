@@ -3,7 +3,7 @@
   "name": "io.github.romaklym/assertify",
   "title": "Assertify",
   "description": "Let AI agents use any website you're logged in to. Sessions stay encrypted on your machine.",
-  "version": "0.4.0",
+  "version": "0.6.0",
   "websiteUrl": "https://github.com/romaklym/assertify",
   "repository": {
     "url": "https://github.com/romaklym/assertify",
@@ -21,9 +21,9 @@
   "packages": [
     {
       "registryType": "mcpb",
-      "identifier": "https://github.com/romaklym/assertify/releases/download/v0.4.0/assertify.mcpb",
-      "version": "0.4.0",
-      "fileSha256": "d71fe440f90553dd507cb98ccaaecf00816621f0402909fe6c3716bfb4632b28",
+      "identifier": "https://github.com/romaklym/assertify/releases/download/v0.6.0/assertify.mcpb",
+      "version": "0.6.0",
+      "fileSha256": "1ddcce2d5d2c6ebd2758f8f394852a7b79f90a968354e0438be961b82e69577e",
       "transport": {
         "type": "stdio"
       }

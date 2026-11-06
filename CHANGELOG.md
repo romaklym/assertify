@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.0 (2026-11-06)
 
 - Sign in with Google (and other providers that block automated browsers): `start_login` now opens your installed Chrome as a normal window with a throwaway profile, instead of an automated one. Assertify only reads its cookies while you sign in, reads the pages once when you're done, then closes it and deletes the profile. Set `ASSERTIFY_LOGIN_WINDOW=playwright` for the old window; `ASSERTIFY_CHROME_PATH` picks the browser.
 - Frames and iframes: snapshots, clicks, typing and `read_text` now reach inside them (old framed dashboards, embedded editors like TinyMCE, report viewers). Ad and CAPTCHA frames are left out.

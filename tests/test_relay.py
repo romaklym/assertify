@@ -13,10 +13,9 @@ import websockets
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 from playwright.async_api import async_playwright
+from test_e2e import COOKIE, _ref, _text, site  # noqa: F401  (fixture: a small local test site)
 
 from assertify.relay import app
-
-from test_e2e import COOKIE, _ref, _text, site  # noqa: F401  (fixture: a small local test site)
 
 TOKEN = "test-token-123"
 
@@ -30,7 +29,9 @@ def _free_port() -> int:
 @pytest.fixture
 def relay():
     port = _free_port()
-    server = uvicorn.Server(uvicorn.Config(app(TOKEN), host="127.0.0.1", port=port, log_level="warning", ws="websockets-sansio"))
+    server = uvicorn.Server(
+        uvicorn.Config(app(TOKEN), host="127.0.0.1", port=port, log_level="warning", ws="websockets-sansio")
+    )
     t = threading.Thread(target=server.run, daemon=True)
     t.start()
     while not server.started:
