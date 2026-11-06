@@ -61,7 +61,37 @@ show(token);
 </script></body>""",
     ),
     "/report.xlsx": ("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", _xlsx()),
+    # An app that keeps things JSON can't hold in IndexedDB, plus a key the browser won't export.
+    "/idb": (
+        "text/html",
+        b"""<!doctype html><title>Vault app</title><body><script>
+(async () => {
+  if ((await indexedDB.databases()).some((d) => d.name === 'app')) { window.done = true; return; }
+  const k = await crypto.subtle.generateKey({name: 'AES-GCM', length: 128}, true, ['encrypt', 'decrypt']);
+  const locked = await crypto.subtle.generateKey({name: 'AES-GCM', length: 128}, false, ['encrypt']);
+  const put = (name, store, entries) => new Promise((ok, fail) => { const o = indexedDB.open(name, 1);
+    o.onupgradeneeded = () => o.result.createObjectStore(store);
+    o.onsuccess = () => { const tx = o.result.transaction(store, 'readwrite');
+      for (const [key, v] of entries) tx.objectStore(store).put(v, key);
+      tx.oncomplete = () => { o.result.close(); ok(); }; tx.onerror = fail; }; });
+  await put('app', 'kv', [['me', {when: new Date(5), bytes: new Uint8Array([1, 2, 3]),
+    file: new Blob(['hi'], {type: 'text/plain'}), tags: new Set(['a']), big: 10n, nan: NaN, key: k,
+    raw: JSON.stringify(await crypto.subtle.exportKey('jwk', k))}], [new Date(7), 'date key']]);
+  await put('locked', 'keys', [['k', locked]]);
+  window.done = true;
+})();
+</script></body>""",
+    ),
 }
+
+READ_IDB = """async () => {
+  const o = indexedDB.open('app'); const db = await new Promise((r) => o.onsuccess = () => r(o.result));
+  const get = (k) => new Promise((r) => { const g = db.transaction('kv').objectStore('kv').get(k); g.onsuccess = () => r(g.result); });
+  const v = await get('me'), d = await get(new Date(7));
+  const jwk = await crypto.subtle.exportKey('jwk', v.key);
+  return [v.when.getTime(), Array.from(v.bytes), v.bytes.constructor.name, await v.file.text(), v.file.type, [...v.tags],
+    String(v.big), Number.isNaN(v.nan), jwk.k === JSON.parse(v.raw).k, d, (await indexedDB.databases()).map((x) => x.name)]; }"""
+RESTORED = [5, [1, 2, 3], "Uint8Array", "hi", "text/plain", ["a"], "10", True, True, "date key", ["app"]]
 
 
 class Site(BaseHTTPRequestHandler):
@@ -187,6 +217,49 @@ async def _login_kept_in_hidden_local_storage(site):
         assert "Signed in" in await s.active.inner_text("body")
     finally:
         await m.shutdown()
+
+
+def test_indexed_db_with_files_and_keys(site, monkeypatch):
+    real = install.launch
+    monkeypatch.setattr("assertify.browser.native_supported", lambda: False)
+    monkeypatch.setattr("assertify.browser.launch", lambda pw, headless=True, **kw: real(pw, headless=True, **kw))
+    asyncio.run(asyncio.wait_for(_indexed_db_with_files_and_keys(site), 90))
+
+
+async def _indexed_db_with_files_and_keys(site):
+    m = BrowserManager()
+    try:
+        await m.start_login("t", site + "/idb", ["127.0.0.1"])
+        await m.logins["t"].context.pages[0].wait_for_function("window.done")
+        result = await m.complete_login("t")
+        assert "locked (encryption keys the browser won't let be copied)" in result
+        meta = Vault().list()[0]
+        assert meta["indexed_db_databases"] == 1 and "locked" in meta["storage_not_copied"][0]
+        s = await m.open_session("t")
+        await s.active.wait_for_function("window.done")
+        assert await s.active.evaluate(READ_IDB) == RESTORED
+        await m.close_session(s.id)  # saving again keeps every type
+        s = await m.open_session("t")
+        await s.active.wait_for_function("window.done")
+        assert await s.active.evaluate(READ_IDB) == RESTORED
+    finally:
+        await m.shutdown()
+
+
+def test_older_saves_move_to_the_new_format():
+    plain = [{"name": "db", "version": 1, "stores": [{"name": "s", "records": [{"value": 1, "key": "a"}]}]}]
+    coded = [{"name": "db", "version": 1, "stores": [{"name": "s", "records": [{"valueEncoded": {"d": "x"}}]}]}]
+    pw, extras = storage.split(
+        {
+            "cookies": [],
+            "origins": [
+                {"origin": "https://a.test", "indexedDB": plain},
+                {"origin": "https://b.test", "indexedDB": coded},
+            ],
+        }
+    )
+    assert extras["indexed_db"] == {"https://a.test": plain}
+    assert "indexedDB" not in pw["origins"][0] and pw["origins"][1]["indexedDB"] == coded
 
 
 async def _download_by_click_url_and_latest(site):

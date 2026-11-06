@@ -398,7 +398,9 @@ class PendingLogin:
     cookies: list = field(default_factory=list)
     local_storage: dict[str, list] = field(default_factory=dict)  # origin -> [{name, value}]
     session_storage: dict[str, list] = field(default_factory=dict)  # origin -> [{name, value}]
-    indexed_db: dict[str, list] = field(default_factory=dict)  # origin -> Playwright's indexedDB dump
+    indexed_db: dict[str, list] = field(default_factory=dict)  # origin -> databases (storage.STORAGE_JS)
+    idb_skipped: dict[str, list] = field(default_factory=dict)  # origin -> databases that couldn't be copied
+    legacy_idb: dict[str, list] = field(default_factory=dict)  # origin -> IndexedDB in an older save's format
     extras: dict = field(default_factory=dict)  # browser settings kept with the login (storage.EXTRA_KEYS)
     ticks: int = 0
     done: asyncio.Event = field(default_factory=asyncio.Event)  # set when the login is finished
@@ -417,14 +419,26 @@ class PendingLogin:
 
     def state(self) -> dict:
         origins = []
-        for o in dict.fromkeys([*self.local_storage, *self.indexed_db]):
+        for o in dict.fromkeys([*self.local_storage, *self.legacy_idb]):
             entry = {"origin": o, "localStorage": self.local_storage.get(o, [])}
-            if self.indexed_db.get(o):
-                entry["indexedDB"] = self.indexed_db[o]
+            if self.legacy_idb.get(o) and o not in self.indexed_db:
+                entry["indexedDB"] = self.legacy_idb[o]
             if entry["localStorage"] or entry.get("indexedDB"):
                 origins.append(entry)
-        extras = {**self.extras, "session_storage": {o: v for o, v in self.session_storage.items() if v}}
+        extras = {
+            **self.extras,
+            "session_storage": {o: v for o, v in self.session_storage.items() if v},
+            "indexed_db": {o: v for o, v in self.indexed_db.items() if v},
+        }
         return storage.merge({"cookies": self.cookies, "origins": origins}, extras)
+
+    def not_copied(self) -> list[str]:
+        """Databases a site keeps that couldn't be copied, e.g. 'web.whatsapp.com: wawc (...)'."""
+        return [
+            f"{urlparse(o).netloc}: {d['name']} ({d['why']})"
+            for o, skipped in self.idb_skipped.items()
+            for d in skipped
+        ]
 
     def keep(self, origin: str, local: list | None, session: list | None, idb: list | None) -> None:
         """Store what one tab's storage looked like (from storage.STORAGE_JS). None means it couldn't
@@ -436,7 +450,8 @@ class PendingLogin:
         if session is not None:
             self.session_storage[origin] = session
         if idb is not None:
-            self.indexed_db[origin] = storage.clean_idb(idb)
+            self.indexed_db[origin] = storage.merge_idb(self.indexed_db.get(origin), idb)
+            self.idb_skipped[origin] = idb.get("skipped", [])
 
 
 class BrowserManager:
@@ -553,11 +568,12 @@ class BrowserManager:
         login.native = native
         login.handoff = handoff
         login.auto_name = auto_name
-        login.extras = {k: v for k, v in extras.items() if k != "session_storage"}
+        login.extras = {k: v for k, v in extras.items() if k not in ("session_storage", "indexed_db")}
         login.session_storage = dict(extras.get("session_storage") or {})
+        login.indexed_db = dict(extras.get("indexed_db") or {})
         if state:
             login.local_storage = {o["origin"]: o.get("localStorage", []) for o in state.get("origins", [])}
-            login.indexed_db = {o["origin"]: o["indexedDB"] for o in state.get("origins", []) if o.get("indexedDB")}
+            login.legacy_idb = {o["origin"]: o["indexedDB"] for o in state.get("origins", []) if o.get("indexedDB")}
         self.logins[profile] = login
 
         if native:  # the watcher notices when the user closes the window
@@ -671,7 +687,7 @@ class BrowserManager:
             if final_backup and not login.native.closed.is_set():
                 await self._backup(login, final=True)
         elif final_backup and login.browser.is_connected():
-            await self._backup(login)  # works even after the last tab closed (macOS keeps the browser alive)
+            await self._backup(login, final=True)  # works after the last tab closed (macOS keeps the browser)
         # If every open tab is still a sign-in page, the user probably hasn't finished logging in.
         stuck = []
         try:
@@ -689,7 +705,7 @@ class BrowserManager:
         state = login.state()
         if not save:
             login.error = "cancelled"
-        elif not state["cookies"] and not state["origins"] and not state.get("session_storage"):
+        elif not state["cookies"] and not storage.summary(state):
             login.error = (
                 "Nothing was captured (no cookies or site storage), so nothing was saved. Run the login again."
             )
@@ -700,6 +716,16 @@ class BrowserManager:
                 if login.meta.get("account") and login.meta["account"] != account:
                     note = f" Note: it's now signed in as {account} (it was {login.meta['account']})."
                 login.meta["account"] = account
+            missing = login.not_copied()
+            if missing:
+                login.meta["storage_not_copied"] = missing
+                note += (
+                    " ⚠ Some of the site's data couldn't be copied to the agent's browser: "
+                    + "; ".join(missing)
+                    + ". If an agent session isn't signed in, this login can't be moved yet."
+                )
+            else:
+                login.meta.pop("storage_not_copied", None)
             if login.auto_name:
                 login.profile = self._final_name(account, login.meta.get("site") or "site")
             try:
@@ -744,7 +770,7 @@ class BrowserManager:
                 await s.context.clear_cookies()
                 await s.context.add_cookies(state["cookies"])
                 if s.active and not s.active.is_closed():
-                    await _put_local_storage(s.context, s.active, state)
+                    await _put_storage(s.context, s.active, state)
                     await s.active.reload(wait_until="domcontentloaded")
                 s.events.append("The user finished in the visible window; this session now has their fresh login.")
             except Exception as e:
@@ -896,8 +922,14 @@ class BrowserManager:
         restore = storage.session_storage_script(extras.get("session_storage"))
         if restore:
             await context.add_init_script(restore)
+        problems = await _restore_idb(context, extras.get("indexed_db"))
         sid = f"{profile}-{secrets.token_hex(3)}"
         session = Session(sid, profile, context, meta)
+        if problems:
+            session.events.append(
+                "Some saved site data couldn't be put back (" + "; ".join(problems[:3]) + "). If the site asks to "
+                "log in, call handoff so the user can sign in again."
+            )
         allowed = meta.get("allowed_domains") or []
         session.site = safety.strict_site(allowed)
         session.mouse = (random.uniform(200, 1000), random.uniform(150, 700))
@@ -943,20 +975,35 @@ class BrowserManager:
     async def save_session(self, sid: str) -> str:
         """Write refreshed cookies/tokens back to the vault."""
         s = self.sessions[sid]
-        state = await s.context.storage_state(indexed_db=True)
+        # Not Playwright's indexed_db=True: it turns files and encryption keys into empty objects.
+        state = await s.context.storage_state()
         try:
-            _, extras = storage.split(self.vault.load(s.profile)[0])
+            old, extras = storage.split(self.vault.load(s.profile)[0])
         except VaultError:
-            extras = {}
+            old, extras = None, {}
         tabs = dict(extras.get("session_storage") or {})
+        idb = dict(extras.get("indexed_db") or {})
         for p in list(s.pages):
             try:
-                origin, items = await p.evaluate(storage.SESSION_JS)
+                origin, _, items, dump = await _isolated(s.context, p, f"({storage.STORAGE_JS})(true)")
             except Exception:
                 continue
-            if origin.startswith("http"):
+            if not origin or not origin.startswith("http"):
+                continue
+            if items is not None:
                 tabs[origin] = items
+            if dump is not None:
+                idb[origin] = storage.merge_idb(idb.get(origin), dump)
+        # An older save's IndexedDB (Playwright's format) stays until a tab of that site is read again.
+        for o in (old or {}).get("origins", []):
+            if o.get("indexedDB") and o["origin"] not in idb:
+                entry = next((e for e in state["origins"] if e["origin"] == o["origin"]), None)
+                if entry is None:
+                    entry = {"origin": o["origin"], "localStorage": []}
+                    state["origins"].append(entry)
+                entry["indexedDB"] = o["indexedDB"]
         extras["session_storage"] = tabs
+        extras["indexed_db"] = idb
         merged = storage.merge(state, extras)
         self.vault.save(s.profile, merged, s.meta)
         return _contents(merged)
@@ -1571,14 +1618,47 @@ async def _isolated(context: BrowserContext, page: Page, expression: str):
             pass
 
 
-async def _put_local_storage(context: BrowserContext, page: Page, state: dict) -> None:
-    """Write a fresh login's localStorage into an open tab of that site, before it's reloaded."""
-    origin = urlparse(page.url)
-    origin = f"{origin.scheme}://{origin.netloc}"
-    items = next((o.get("localStorage") for o in state.get("origins", []) if o["origin"] == origin), None)
-    if items:
-        js = f"(() => {{ for (const i of {json.dumps(items)}) localStorage.setItem(i.name, i.value); }})()"
-        await _isolated(context, page, js)
+async def _put_storage(context: BrowserContext, page: Page, state: dict) -> None:
+    """Write a fresh login's storage (localStorage, sessionStorage, IndexedDB) into an open tab of
+    that site, before it's reloaded."""
+    u = urlparse(page.url)
+    origin = f"{u.scheme}://{u.netloc}"
+    data = {
+        "local": next((o.get("localStorage") for o in state.get("origins", []) if o["origin"] == origin), None) or [],
+        "session": (state.get("session_storage") or {}).get(origin) or [],
+        "idb": (state.get("indexed_db") or {}).get(origin) or [],
+    }
+    if not any(data.values()):
+        return
+    js = (
+        f"(async () => {{ const d = {json.dumps(data)};"
+        " for (const i of d.local) localStorage.setItem(i.name, i.value);"
+        " for (const i of d.session) sessionStorage.setItem(i.name, i.value);"
+        f" return d.idb.length ? await ({storage.RESTORE_IDB_JS})(d.idb) : []; }})()"
+    )
+    await _isolated(context, page, js)
+
+
+async def _restore_idb(context: BrowserContext, saved: dict | None) -> list[str]:
+    """Put saved IndexedDB back before the agent's first visit: each site's databases are written
+    from a blank page of that site (served locally, nothing is fetched). Returns the problems."""
+    problems = []
+    for origin, dbs in (saved or {}).items():
+        if not dbs or not origin.startswith("http"):
+            continue
+        host = urlparse(origin).netloc
+        page = await context.new_page()
+        try:
+            await page.route(
+                "**/*", lambda r: r.fulfill(status=200, content_type="text/html", body="<!doctype html><title></title>")
+            )
+            await page.goto(origin + "/")
+            problems += [f"{host}: {p}" for p in await page.evaluate(storage.RESTORE_IDB_JS, dbs)]
+        except Exception as e:
+            problems.append(f"{host}: {str(e).splitlines()[0]}")
+        finally:
+            await page.close()
+    return problems
 
 
 def _contents(state: dict) -> str:

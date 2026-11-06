@@ -279,7 +279,7 @@ A folder means every file in it, subfolders included, skipping hidden files like
 
 - **Downloads:** ask for "last month's CSV export" and the agent calls `download(text="Export CSV")`, or `download(url=...)` for a direct file link, or `download()` for a file the page just started. Files go to `~/.assertify-mcp/downloads/<session>/` (mode `0600`, deleted after 7 days; `ASSERTIFY_DOWNLOAD_DIR` picks another folder). Only links on the login's allowed domains can be fetched, 100 MB at most, and files are only read, never opened or run.
 - **The browser's own sign-in box and self-signed certificates** (intranets, routers, NAS boxes, old admin pages): the agent calls `browser_settings`, a small window opens, and you type the username and password and can tick "trust this site's certificate". They're saved encrypted with the login, sent only to that site, and never shown to the agent or in `list_profiles`.
-- **Apps that keep their login outside cookies** (WhatsApp Web, Teams and other web apps that use IndexedDB or sessionStorage): the login window saves those too, so the agent's session stays signed in. IndexedDB data that isn't plain JSON (files, images) isn't copied.
+- **Apps that keep their login outside cookies** (WhatsApp Web, Teams and other web apps that use IndexedDB or sessionStorage): the login window saves those too, including files, binary data and encryption keys in IndexedDB, so the agent's session stays signed in. Sites that hide their storage from page scripts (Discord) work too. The one thing that can't be copied is an encryption key the browser marks as locked; the login then says which site data was left behind.
 
 ## 🧍 Staying unnoticed
 
@@ -368,7 +368,7 @@ Less than you'd think. The agent reads the page fresh every step and can click b
 Not yet. Assertify is local-first by design: your sessions never leave your computer.
 
 **Known limits**
-Login saves cookies and localStorage, not IndexedDB, so a few apps that keep their token only in IndexedDB won't stay logged in. No anti-detection is perfect: a site determined to spot automation may still do so. Snapshots don't look inside iframes or closed shadow roots yet.
+A few apps keep their sign-in in encryption keys the browser won't let anyone copy; those logins can't move to the agent's browser (the save message says so). No anti-detection is perfect: a site determined to spot automation may still do so. Snapshots don't look inside iframes or closed shadow roots yet.
 
 ## 🤝 Contributing
 
