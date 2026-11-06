@@ -75,6 +75,11 @@ def main() -> None:
     rn.add_argument("new_name")
     dl = sub.add_parser("delete", help="Delete a saved session")
     dl.add_argument("profile")
+    rl = sub.add_parser("relay", help="Serve the Assertify phone app to remote agents (Claude mobile, Codex)")
+    rl.add_argument("--host", default="127.0.0.1", help="Address to listen on (0.0.0.0 for your LAN)")
+    rl.add_argument("--port", type=int, default=8765)
+    rl.add_argument("--public-url", help="The https:// address agents reach this relay at (e.g. a tunnel)")
+    rl.add_argument("--new-token", action="store_true", help="Make a new secret (unpairs the phone)")
     args = p.parse_args()
     if args.cmd not in (None, "serve"):
         # Windows consoles may not be UTF-8; never crash on a ✓ or an emoji in a page title.
@@ -101,6 +106,10 @@ def main() -> None:
         elif args.cmd == "rename":
             Vault().rename(args.profile, args.new_name)
             print(f"Renamed to {args.new_name!r}.")
+        elif args.cmd == "relay":
+            from .relay import serve
+
+            serve(args.host, args.port, args.public_url, args.new_token)
         elif args.cmd == "delete":
             print("Deleted." if Vault().delete(args.profile) else "No such profile.")
     except VaultError as e:

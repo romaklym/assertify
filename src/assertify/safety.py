@@ -18,7 +18,7 @@ from urllib.parse import urlparse
 RISKY = re.compile(
     r"\b(send|post|publish|tweet|reply|comment|share|repost|submit|buy|purchase|order|checkout|check out|"
     r"pay|donate|subscribe|unsubscribe|delete|remove|discard|archive|transfer|withdraw|confirm|accept|"
-    r"approve|agree|sign|apply|connect|follow|unfollow|invite|endorse|recommend|book|reserve|deactivate|"
+    r"approve|agree|sign|apply|connect|follow|unfollow|invite|endorse|recommend|book|reserve|deactivate|block|unblock|report|mute|"
     r"close account|cancel (subscription|order|membership|account))\b",
     re.I,
 )

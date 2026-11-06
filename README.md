@@ -284,6 +284,17 @@ Sites flag browsers that act like robots. Assertify tries hard not to:
 
 Set `ASSERTIFY_HUMANIZE=0` to turn the human input off (faster; fine for your own tools and test sites).
 
+## 📱 On your phone
+
+Assertify also runs on iPhone and Android, for agents on your phone such as Claude mobile or ChatGPT/Codex.
+
+1. Run the relay on a computer or server: `assertify relay --public-url https://relay.example.com` (or no flag on your home Wi-Fi). It prints an MCP URL and a pairing link.
+2. Install the app from [`mobile/`](mobile/), tap **Pair** and paste the link.
+3. Log in to sites in the app's browser by hand.
+4. Add the MCP URL to your agent as a custom connector and ask away: "check my LinkedIn messages".
+
+The agent works in a hidden browser on the phone, with the same tools, pop-up handling and confirmations as on the desktop. Your logins never leave the phone; the relay only passes commands and page snapshots. Anyone with the relay token can use your logged-in sites, so keep it secret and use HTTPS when the relay is on the internet. See [mobile/README.md](mobile/README.md).
+
 ## 🪟 Pop-ups, dialogs and expired logins
 
 - **Cookie banners** are answered with "Reject all" / "Only necessary" automatically (`ASSERTIFY_AUTO_CONSENT=0` to turn off).

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.0 (2026-11-05)
+
+- Phones: a Flutter app for iPhone and Android (`mobile/`). Log in to any site in the app's browser; agents then work in a hidden browser on the phone with your login.
+- New `assertify relay`: an MCP server for Claude mobile, ChatGPT/Codex and other remote agents that forwards to the paired phone over a WebSocket. Token-protected, one phone at a time.
+- Block, unblock, report and mute buttons now need `confirmed=true` too.
+
 ## 0.4.0 (2026-11-02)
 
 - New `upload_files` tool: attach files or whole folders (photos for a post, a PDF for an email). Uses the site's file dialog like a person, else its upload field, else drag-and-drop. Respects single-file fields and file-type limits.
