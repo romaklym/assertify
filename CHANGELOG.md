@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.2 (2026-11-06)
 
 - Fixed downloading Discord images and other attachments that open in a viewer: `download` with the link's ref now fetches the file the link points to instead of clicking it and waiting.
 - Long links in snapshots end with `…` when shortened, and `download(url=...)` accepts that shortened link and uses the page's full signed link.
