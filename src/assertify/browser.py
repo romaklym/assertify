@@ -201,7 +201,7 @@ SNAPSHOT_JS = r"""
     }
     if (el.disabled) extra += ' [disabled]';
     if ((seen[name] || 0) > 1) { const row = rowOf(el, name); if (row) extra += ` row="${row}"`; }
-    if (role === 'link') { const h = el.getAttribute('href'); if (h && !h.startsWith('javascript')) extra += ` -> ${h.slice(0, 100)}`; }
+    if (role === 'link') { const h = el.getAttribute('href'); if (h && !h.startsWith('javascript')) extra += ` -> ${h.length > 100 ? h.slice(0, 100) + '…' : h}`; }
     lines.push(`[${ref}] ${role} "${name}"${extra}`);
     const submit = el.type === 'submit' && !!el.form;
     const field = clean([el.getAttribute('aria-label'), el.getAttribute('placeholder'), el.getAttribute('name'), el.type, name].join(' '), 200);
@@ -1355,6 +1355,7 @@ class BrowserManager:
         session's login, or (with none of those) the file the page most recently started downloading.
         Returns (note, saved path, content type)."""
         if url:
+            url = url.strip().rstrip("…")  # a link the snapshot shortened
             safety.check_url(url)
             allowed = s.meta.get("allowed_domains") or []
             if allowed and os.environ.get("ASSERTIFY_ALLOW_ANY_DOMAIN") != "1" and not host_allowed(url, allowed):
@@ -1376,6 +1377,12 @@ class BrowserManager:
             role, label, submit, _ = s.items.get(ref, ["", "", False, ""])
             safety.check_click(role, label, submit, s.read_only, confirmed)
             self.budget.check(s.profile, s.site)
+            off = await self._off_site_href(s, loc)
+            if off:
+                # A link to a file on another host (Discord's CDN). Sites often open such links in a viewer
+                # instead of following them, so fetch what the link points at. The site chose that link.
+                safety.check_url(off)
+                return await self._fetch(s, off, off_site=True)
             tabs = list(s.pages)
             await self._press(s, ref, loc)
             for _ in range(int(DOWNLOAD_WAIT * 10)):  # the file may only start after the site prepares it
@@ -1451,8 +1458,24 @@ class BrowserManager:
             return url
         for href in found:
             got = urlparse(href)
-            if (got.scheme, got.netloc, got.path) == (want.scheme, want.netloc, want.path) and not want.query:
+            if (got.scheme, got.netloc, got.path) != (want.scheme, want.netloc, want.path):
+                continue
+            # Without its query, or cut short (the snapshot shortens long links): use the page's full link.
+            if not want.query or href.startswith(url):
                 return href
+        return None
+
+    async def _off_site_href(self, s: Session, loc) -> str | None:
+        """The http(s) address the element links to, if that's outside the login's allowed domains."""
+        allowed = s.meta.get("allowed_domains") or []
+        if not allowed or os.environ.get("ASSERTIFY_ALLOW_ANY_DOMAIN") == "1":
+            return None
+        try:
+            href = await loc.evaluate("el => (el.closest('a[href]') || {}).href || ''", timeout=2000)
+        except Exception:
+            return None
+        if href.startswith(("http://", "https://")) and not host_allowed(href, allowed):
+            return href
         return None
 
     def _download_path(self, s: Session, name: str) -> Path:

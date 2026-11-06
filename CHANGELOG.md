@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Fixed downloading Discord images and other attachments that open in a viewer: `download` with the link's ref now fetches the file the link points to instead of clicking it and waiting.
+- Long links in snapshots end with `…` when shortened, and `download(url=...)` accepts that shortened link and uses the page's full signed link.
+
 ## 0.6.1 (2026-11-06)
 
 - Downloads from files on another host now work (Discord attachments on `cdn.discordapp.com`, files on S3 or Google's content servers). Clicking such a link fetches the file directly instead of timing out, and `download(url=...)` accepts a file outside the login's domains when the page links to it, using the page's own signed link. Other off-site URLs are still refused, and off-site web pages aren't saved.

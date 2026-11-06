@@ -56,7 +56,10 @@ PAGES = {
         b"""<!doctype html><title>DM</title><body><script>
 const cdn = 'http://localhost:' + location.port;
 document.body.innerHTML = `<a target="_blank" href="${cdn}/attachments/1/statement.pdf?ex=sig">statement.pdf</a>
-  <a target="_blank" href="${cdn}/page">elsewhere</a>`;
+  <a target="_blank" href="${cdn}/page">elsewhere</a>
+  <a id="img" href="${cdn}/attachments/2/image.png?ex=6aee&is=6aed&hm=${'a'.repeat(120)}&">photo</a>`;
+// Like Discord's image attachments: clicking opens a viewer on the page instead of following the link.
+document.getElementById('img').onclick = (e) => { e.preventDefault(); document.title = 'viewer'; };
 </script></body>""",
     ),
     # Like Discord: the sign-in token lives in localStorage, and the app hides localStorage once loaded.
@@ -114,7 +117,7 @@ class Site(BaseHTTPRequestHandler):
             self.wfile.write(CSV)
             return
         if self.path.startswith("/attachments/"):  # a CDN: only signed links work
-            ok = self.path.endswith("?ex=sig")
+            ok = self.path.endswith("?ex=sig") or self.path.endswith("&hm=" + "a" * 120 + "&")
             self.send_response(200 if ok else 404)
             self.send_header("Content-Type", "application/pdf")
             self.end_headers()
@@ -221,7 +224,15 @@ async def _files_on_another_host(site):
         assert path.read_bytes() == PDF
         with pytest.raises(Exception, match="doesn't link to that file"):
             await m.download(s, None, None, cdn.replace("1/", "2/"), False)
-        await m.snapshot(s.id)
+        # An image whose click opens a viewer: fetch the link instead of waiting for a download.
+        note, path, _ = await m.download(s, None, "photo", None, False)
+        assert path.read_bytes() == PDF and "image.png" in note
+        # The snapshot shortens the long signed link; that shortened url still finds the page's full link.
+        snap = await m.snapshot(s.id)
+        short = next(line.split(" -> ")[1] for line in snap.splitlines() if '"photo"' in line)
+        assert short.endswith("…") and "hm=" in short
+        note, path, _ = await m.download(s, None, None, short, False)
+        assert path.read_bytes() == PDF
         with pytest.raises(Exception, match="web page"):
             await m.download(s, None, "elsewhere", None, False)
         assert "/chat" in s.active.url
