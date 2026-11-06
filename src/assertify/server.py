@@ -286,6 +286,7 @@ async def click(
     text: str | None = None,
     confirmed: bool = False,
     accept_dialog: bool = False,
+    dialog_text: str | None = None,
 ) -> Result:
     """Click an element: `ref` from the latest snapshot (e.g. "e12"), or its visible `text`
     (e.g. "Messages"), which keeps working when the page layout changes.
@@ -293,9 +294,10 @@ async def click(
     confirmed: set to true only after the user approved this exact action. Buttons that send, post,
       buy, delete, connect, etc. are paused until then.
     accept_dialog: if the click opens an "Are you sure?" browser box, press OK instead of Cancel.
+    dialog_text: if the click opens a browser box that asks for text (a prompt), type this and press OK.
     """
     s = manager.get(session_id)
-    note = await manager.click(s, ref, text, confirmed, accept_dialog)
+    note = await manager.click(s, ref, text, confirmed, accept_dialog, dialog_text)
     return await _after(session_id, note)
 
 

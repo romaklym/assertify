@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- Sign in with Google (and other providers that block automated browsers): `start_login` now opens your installed Chrome as a normal window with a throwaway profile, instead of an automated one. Assertify only reads its cookies while you sign in, reads the pages once when you're done, then closes it and deletes the profile. Set `ASSERTIFY_LOGIN_WINDOW=playwright` for the old window; `ASSERTIFY_CHROME_PATH` picks the browser.
+- Frames and iframes: snapshots, clicks, typing and `read_text` now reach inside them (old framed dashboards, embedded editors like TinyMCE, report viewers). Ad and CAPTCHA frames are left out.
+- Shadow DOM: buttons and fields inside web components now show up and can be clicked.
+- Repeated buttons in tables ("edit", "delete", "View") show which row they belong to, e.g. `row="Smith"`.
+- Icon-only buttons and links get a name from their icon's title or label, or else a readable element id.
+- Dropdowns no longer show their internal value as the label.
+- New `dialog_text` on `click`: answers a browser prompt box.
+- `complete_login` warns when the login window is still on a sign-in page (the login probably hadn't finished).
+- Clearer empty snapshots: says when a page is still loading or failed to load its scripts, or is made only of frames. Page text no longer carries runs of blank lines.
+
 ## 0.5.0 (2026-11-05)
 
 - Phones: a Flutter app for iPhone and Android (`mobile/`). Log in to any site in the app's browser; agents then work in a hidden browser on the phone with your login.
