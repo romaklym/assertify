@@ -28,12 +28,14 @@ from playwright.async_api import (
 )
 from playwright.async_api import TimeoutError as PlaywrightTimeout
 
-from . import human, safety
+from . import files, human, prompt, safety, storage
 from .install import launch
 from .native import NativeChrome, find_chrome, native_supported
 from .vault import Vault, VaultError, vault_home
 
 VIEWPORT = {"width": 1280, "height": 900}
+MAX_DOWNLOAD = 100 * 1024 * 1024
+DOWNLOAD_WAIT = 60  # seconds a clicked download may take to start (sites build exports first)
 # Hides the most obvious automation flag; keeps sites from bouncing the session.
 LAUNCH_ARGS = ["--disable-blink-features=AutomationControlled"]
 STEALTH_JS = "Object.defineProperty(Navigator.prototype, 'webdriver', {get: () => undefined});"
@@ -373,6 +375,8 @@ class Session:
     dialog_text: str | None = None  # typed into a prompt() box on the next dialog
     frames: dict = field(default_factory=dict)  # ref -> Frame, for elements inside iframes/frames
     site: str | None = None  # set for sites known to restrict automation
+    downloads: list = field(default_factory=list)  # Playwright downloads the pages started, newest last
+    saved_downloads: int = 0
 
     @property
     def read_only(self) -> bool:
@@ -392,6 +396,10 @@ class PendingLogin:
     initial_cookies: int = 0
     cookies: list = field(default_factory=list)
     local_storage: dict[str, list] = field(default_factory=dict)  # origin -> [{name, value}]
+    session_storage: dict[str, list] = field(default_factory=dict)  # origin -> [{name, value}]
+    indexed_db: dict[str, list] = field(default_factory=dict)  # origin -> Playwright's indexedDB dump
+    extras: dict = field(default_factory=dict)  # browser settings kept with the login (storage.EXTRA_KEYS)
+    ticks: int = 0
     done: asyncio.Event = field(default_factory=asyncio.Event)  # set when the login is finished
     result: str | None = None
     error: str | None = None
@@ -407,10 +415,24 @@ class PendingLogin:
         return max(self.accounts, key=self.accounts.get) if self.accounts else None
 
     def state(self) -> dict:
-        return {
-            "cookies": self.cookies,
-            "origins": [{"origin": o, "localStorage": ls} for o, ls in self.local_storage.items() if ls],
-        }
+        origins = []
+        for o in dict.fromkeys([*self.local_storage, *self.indexed_db]):
+            entry = {"origin": o, "localStorage": self.local_storage.get(o, [])}
+            if self.indexed_db.get(o):
+                entry["indexedDB"] = self.indexed_db[o]
+            if entry["localStorage"] or entry.get("indexedDB"):
+                origins.append(entry)
+        extras = {**self.extras, "session_storage": {o: v for o, v in self.session_storage.items() if v}}
+        return storage.merge({"cookies": self.cookies, "origins": origins}, extras)
+
+    def keep(self, origin: str, local: list, session: list, idb: list | None) -> None:
+        """Store what one tab's storage looked like (from storage.STORAGE_JS)."""
+        if not origin.startswith("http"):
+            return
+        self.local_storage[origin] = local
+        self.session_storage[origin] = session
+        if idb is not None:
+            self.indexed_db[origin] = storage.clean_idb(idb)
 
 
 class BrowserManager:
@@ -425,6 +447,10 @@ class BrowserManager:
         self._lock = asyncio.Lock()
         self.shots_dir = vault_home() / "screenshots"
         _prune_old(self.shots_dir, days=7)
+        custom = os.environ.get("ASSERTIFY_DOWNLOAD_DIR")
+        self.downloads_dir = Path(custom).expanduser() if custom else vault_home() / "downloads"
+        if not custom:  # downloads can hold private data too; the user's own folder is theirs to tidy
+            _prune_old(self.downloads_dir, days=7)
 
     async def _playwright(self) -> Playwright:
         if self._pw is None:
@@ -471,9 +497,10 @@ class BrowserManager:
             await self._finish_login(old, save=False)
 
         try:
-            state, old_meta = self.vault.load(profile)  # re-login on top of an existing session
+            saved, old_meta = self.vault.load(profile)  # re-login on top of an existing session
         except VaultError:
-            state, old_meta = None, {}
+            saved, old_meta = None, {}
+        state, extras = storage.split(saved)
         if sys.platform.startswith("linux") and not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
             raise VaultError(
                 "No screen to show the login window on (no DISPLAY). Log in on a desktop machine, or over SSH "
@@ -495,7 +522,9 @@ class BrowserManager:
         else:
             pw = await self._playwright()
             browser = await launch(pw, headless=False, args=LAUNCH_ARGS)
-            context = await browser.new_context(viewport=VIEWPORT, storage_state=state)
+            context = await browser.new_context(
+                viewport=VIEWPORT, storage_state=state, **storage.context_options(extras)
+            )
             await context.add_init_script(STEALTH_JS)
             page = await context.new_page()
             fp = await page.evaluate(
@@ -520,8 +549,11 @@ class BrowserManager:
         login.native = native
         login.handoff = handoff
         login.auto_name = auto_name
+        login.extras = {k: v for k, v in extras.items() if k != "session_storage"}
+        login.session_storage = dict(extras.get("session_storage") or {})
         if state:
             login.local_storage = {o["origin"]: o.get("localStorage", []) for o in state.get("origins", [])}
+            login.indexed_db = {o["origin"]: o["indexedDB"] for o in state.get("origins", []) if o.get("indexedDB")}
         self.logins[profile] = login
 
         if native:  # the watcher notices when the user closes the window
@@ -549,9 +581,12 @@ class BrowserManager:
         )
 
     async def _backup(self, login: PendingLogin, final: bool = False) -> None:
-        """Copy cookies + localStorage of open tabs. Unlike storage_state(), this never opens a tab."""
+        """Copy cookies and the storage of open tabs. Unlike storage_state(), this never opens a tab.
+        IndexedDB is bigger, so it's read every ~15 seconds and at the end."""
+        login.ticks += 1
+        with_idb = final or login.ticks % 10 == 1
         if login.native:
-            await self._backup_native(login, final)
+            await self._backup_native(login, final, with_idb)
             return
         try:
             login.cookies = await login.context.cookies()
@@ -559,11 +594,7 @@ class BrowserManager:
             return
         for p in list(login.context.pages):
             try:
-                origin, items = await p.evaluate(
-                    "() => [location.origin, Object.entries(localStorage).map(([name, value]) => ({name, value}))]"
-                )
-                if origin.startswith("http"):
-                    login.local_storage[origin] = items
+                login.keep(*await p.evaluate(storage.STORAGE_JS, with_idb))
                 hits = await p.evaluate(ACCOUNT_JS)
             except Exception:
                 continue
@@ -574,29 +605,36 @@ class BrowserManager:
             for email, score in seen.items():  # latest view counts most; decays older guesses
                 login.accounts[email] = login.accounts.get(email, 0) * 0.9 + score
 
-    async def _backup_native(self, login: PendingLogin, final: bool) -> None:
-        """The user's own Chrome: only the cookie jar while they sign in (pages can't notice that);
-        localStorage, the account and the locale once they're done."""
+    async def _backup_native(self, login: PendingLogin, final: bool, with_idb: bool) -> None:
+        """The user's own Chrome: the cookie jar while they sign in. Tabs' storage only now and then,
+        and never from a sign-in page (pages there could notice), plus the account and locale at the end."""
         n = login.native
         try:
             login.cookies = await n.cookies()
-            if not await n.page_targets():
+            targets = await n.page_targets()
+            if not targets:
                 login.done.set()  # the user closed the window (Chrome on macOS stays open without one)
         except Exception:
             login.done.set()
             return
-        if not final:
+        if not (final or with_idb):
             return
-        js = (
-            "[location.origin, Object.entries(localStorage).map(([name, value]) => ({name, value})),"
-            f" ({ACCOUNT_JS})(), navigator.language, Intl.DateTimeFormat().resolvedOptions().timeZone]"
-        )
-        for _, value in await n.evaluate_pages(js):
+        if final:
+            js = (
+                f"(async () => [...await ({storage.STORAGE_JS})(true), ({ACCOUNT_JS})(), navigator.language,"
+                " Intl.DateTimeFormat().resolvedOptions().timeZone])()"
+            )
+            skip = None
+        else:
+            js = f"({storage.STORAGE_JS})(true)"
+            skip = _sign_in_url
+        for _, value in await n.evaluate_pages(js, skip=skip):
             if not value:
                 continue
-            origin, items, hits, lang, tz = value
-            if origin.startswith("http"):
-                login.local_storage[origin] = items
+            login.keep(*value[:4])
+            if not final:
+                continue
+            hits, lang, tz = value[4:]
             for email, weight in hits:
                 if not NOT_ACCOUNT.search(email):
                     login.accounts[email] = max(login.accounts.get(email, 0), weight)
@@ -733,6 +771,72 @@ class BrowserManager:
                 login.watcher.cancel()
             await self._finish_login(login, save=False)
 
+    async def browser_settings(self, profile: str | None, url: str | None) -> str:
+        """Let the user enter a browser sign-in box password (HTTP Basic/NTLM) and allow a self-signed
+        certificate, in a window of their own. Nothing they type comes back to the agent."""
+        if sys.platform.startswith("linux") and not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
+            raise VaultError("No screen to show the settings window on (no DISPLAY).")
+        try:
+            name = self.resolve(profile) if profile else None
+        except VaultError:
+            name = None
+        if name:
+            saved, meta = self.vault.load(name)
+        elif url:
+            safety.check_url(url)
+            name = profile or self._temp_name(url).replace("-new-", "-")
+            self.vault._path(name)
+            saved = {"cookies": [], "origins": []}
+            site = _base_domain(url)
+            meta = {"start_url": url, "site": site, "allowed_domains": [site]}
+        else:
+            raise VaultError(f"No saved login named {profile!r}. Give the site's url to set one up.")
+        start = url or meta.get("start_url", "")
+        u = urlparse(start)
+        if u.scheme not in ("http", "https") or not u.hostname:
+            raise VaultError(f"Need a web address (http/https) for {name!r}, got {start!r}.")
+        origin = f"{u.scheme}://{u.netloc}"
+        old = saved.get("http_credentials") or {}
+        answer = await prompt.ask(
+            await self._playwright(),
+            launch,
+            name,
+            u.netloc,
+            old.get("username", ""),
+            bool(old.get("password")),
+            bool(saved.get("ignore_https_errors")),
+        )
+        if answer is None:
+            return "The user cancelled or closed the window; nothing changed."
+        user = (answer.get("user") or "").strip()
+        if user:
+            saved["http_credentials"] = {
+                "username": user,
+                "password": answer.get("password") or (old.get("password", "") if old.get("username") == user else ""),
+                "origin": origin,  # sent only to this site, never to others the page loads from
+            }
+        else:
+            saved.pop("http_credentials", None)
+        saved["ignore_https_errors"] = bool(answer.get("trust"))
+        meta["http_login"] = bool(user)  # shown in list_profiles; the password itself never is
+        meta["trusts_certificate"] = saved["ignore_https_errors"]
+        meta.setdefault("start_url", start)
+        self.vault.save(name, saved, meta)
+        what = [
+            w for w, on in (("a browser sign-in password", user), ("trust for its certificate", answer["trust"])) if on
+        ]
+        reopen = (
+            " Close and reopen any open session of it to use them."
+            if any(x.profile == name for x in self.sessions.values())
+            else ""
+        )
+        return (
+            f"Saved for {name!r}: "
+            + (" and ".join(what) or "no browser password, normal certificate checks")
+            + "."
+            + reopen
+        )
+
     # ---------- agent sessions (headless) ----------
 
     def profiles(self, site: str | None = None) -> list[dict]:
@@ -767,7 +871,8 @@ class BrowserManager:
 
     async def open_session(self, profile: str) -> Session:
         profile = self.resolve(profile)
-        state, meta = self.vault.load(profile)
+        saved, meta = self.vault.load(profile)
+        state, extras = storage.split(saved)
         browser = await self._headless_browser()
         context = await browser.new_context(
             viewport=VIEWPORT,
@@ -775,9 +880,15 @@ class BrowserManager:
             user_agent=meta.get("user_agent") or self._default_ua,
             locale=meta.get("locale"),
             timezone_id=meta.get("timezone"),
-            accept_downloads=False,  # a logged-in agent never writes files from the web to disk
+            # Files only reach disk through the download tool; anything else stays in a temp folder
+            # that Playwright deletes when the session closes.
+            accept_downloads=True,
+            **storage.context_options(extras),
         )
         await context.add_init_script(STEALTH_JS)
+        restore = storage.session_storage_script(extras.get("session_storage"))
+        if restore:
+            await context.add_init_script(restore)
         sid = f"{profile}-{secrets.token_hex(3)}"
         session = Session(sid, profile, context, meta)
         allowed = meta.get("allowed_domains") or []
@@ -799,6 +910,8 @@ class BrowserManager:
             session.active = p
             p.on("close", lambda _: _on_close(session, p))
             p.on("dialog", lambda d: asyncio.ensure_future(_on_dialog(session, d)))
+            p.on("download", lambda d: _on_download(session, d))
+            p.on("response", lambda r: _on_response(session, r))
             p.on("framenavigated", lambda f: f == p.main_frame and self.budget.record(profile))
 
         context.on("page", on_page)
@@ -824,7 +937,20 @@ class BrowserManager:
         """Write refreshed cookies/tokens back to the vault."""
         s = self.sessions[sid]
         state = await s.context.storage_state(indexed_db=True)
-        self.vault.save(s.profile, state, s.meta)
+        try:
+            _, extras = storage.split(self.vault.load(s.profile)[0])
+        except VaultError:
+            extras = {}
+        tabs = dict(extras.get("session_storage") or {})
+        for p in list(s.pages):
+            try:
+                origin, items = await p.evaluate(storage.SESSION_JS)
+            except Exception:
+                continue
+            if origin.startswith("http"):
+                tabs[origin] = items
+        extras["session_storage"] = tabs
+        self.vault.save(s.profile, storage.merge(state, extras), s.meta)
         return len(state.get("cookies", []))
 
     async def close_session(self, sid: str, save: bool = True) -> None:
@@ -856,6 +982,18 @@ class BrowserManager:
         try:
             await s.active.goto(url, wait_until="domcontentloaded")
         except Exception as e:
+            if "ERR_CERT_" in str(e):
+                raise VaultError(
+                    f"{urlparse(url).hostname} has a certificate the browser doesn't trust ("
+                    f"{re.search(r'ERR_CERT_[A-Z_]+', str(e)).group()}). If it's the user's own or their company's "
+                    "site (intranet, router, device), they can allow it with browser_settings."
+                ) from None
+            if "ERR_INVALID_AUTH_CREDENTIALS" in str(e):
+                saved = "the saved one was refused" if s.meta.get("http_login") else "none is saved"
+                raise VaultError(
+                    f"{urlparse(url).hostname} asks for a username and password in the browser's own sign-in box, "
+                    f"and {saved}. Ask the user to enter them with browser_settings (you never see them)."
+                ) from None
             if "ERR_BLOCKED_BY_CLIENT" not in str(e):
                 raise
             try:  # Chrome swaps in its error page a moment after the abort; step back off it
@@ -1151,6 +1289,76 @@ class BrowserManager:
         await s.active.keyboard.press("Escape")
         return "No close button found; pressed Escape."
 
+    # ---------- downloads ----------
+
+    async def download(
+        self, s: Session, ref: str | None, text: str | None, url: str | None, confirmed: bool
+    ) -> tuple[str, Path, str]:
+        """Save a file from the site: by clicking a download link/button, fetching a url with the
+        session's login, or (with none of those) the file the page most recently started downloading.
+        Returns (note, saved path, content type)."""
+        if url:
+            safety.check_url(url)
+            allowed = s.meta.get("allowed_domains") or []
+            if allowed and os.environ.get("ASSERTIFY_ALLOW_ANY_DOMAIN") != "1" and not host_allowed(url, allowed):
+                raise safety.Blocked(f"Blocked: {urlparse(url).hostname} is outside this login's allowed domains.")
+            self.budget.check(s.profile, s.site)
+            await self.before_load(s)
+            resp = await s.context.request.get(url, timeout=120_000, max_redirects=5, fail_on_status_code=False)
+            if not resp.ok:
+                raise VaultError(f"The site answered {resp.status} {resp.status_text} for {url}.")
+            body = await resp.body()
+            if len(body) > MAX_DOWNLOAD:
+                raise VaultError(f"The file is {_size(len(body))}; the limit is {_size(MAX_DOWNLOAD)}.")
+            headers = resp.headers
+            name = _disposition_name(headers.get("content-disposition", "")) or Path(urlparse(resp.url).path).name
+            ctype = headers.get("content-type", "")
+            if not Path(name).suffix and ctype:
+                name += mimetypes.guess_extension(ctype.split(";")[0].strip()) or ""
+            path = self._download_path(s, name)
+            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "wb") as f:
+                f.write(body)
+            return f"Downloaded {path.name} ({_size(len(body))}) from {resp.url}", path, ctype
+        before = len(s.downloads)
+        if ref or text:
+            ref, loc = await self.locate(s, ref, text)
+            role, label, submit, _ = s.items.get(ref, ["", "", False, ""])
+            safety.check_click(role, label, submit, s.read_only, confirmed)
+            self.budget.check(s.profile, s.site)
+            await self._press(s, ref, loc)
+            for _ in range(int(DOWNLOAD_WAIT * 10)):  # the file may only start after the site prepares it
+                if len(s.downloads) > before:
+                    break
+                await asyncio.sleep(0.1)
+            else:
+                raise VaultError(
+                    f"Clicked {ref} but no download started within {DOWNLOAD_WAIT} seconds. If it opened a page instead, "
+                    "call snapshot; for a direct file link, pass its url."
+                )
+        elif not s.downloads:
+            raise VaultError(
+                "No download has started in this session. Pass the ref/text of the download button, or a url."
+            )
+        d = s.downloads.pop()
+        failure = await d.failure()
+        if failure:
+            raise VaultError(f"The download failed: {failure}")
+        path = self._download_path(s, d.suggested_filename)
+        await d.save_as(path)
+        os.chmod(path, 0o600)
+        size = path.stat().st_size
+        if size > MAX_DOWNLOAD:
+            path.unlink()
+            raise VaultError(f"The file is {_size(size)}; the limit is {_size(MAX_DOWNLOAD)}.")
+        return f"Downloaded {path.name} ({_size(size)})", path, mimetypes.guess_type(path.name)[0] or ""
+
+    def _download_path(self, s: Session, name: str) -> Path:
+        folder = self.downloads_dir / s.id
+        folder.mkdir(parents=True, exist_ok=True, mode=0o700)
+        s.saved_downloads += 1
+        return folder / f"{s.saved_downloads:02d}-{files.safe_name(name)}"
+
     # ---------- reading ----------
 
     async def capture(
@@ -1292,11 +1500,59 @@ async def _on_dialog(session: Session, dialog: Dialog) -> None:
         )
 
 
+def _on_response(session: Session, response) -> None:
+    """A page that answers with the browser's own sign-in box (HTTP Basic/NTLM) shows up empty headless."""
+    try:
+        if response.status != 401 or not response.request.is_navigation_request():
+            return
+        if "www-authenticate" not in response.headers:
+            return
+    except Exception:
+        return
+    note = (
+        f"{urlparse(response.url).hostname} asks for a username and password in the browser's own sign-in box. "
+        "Ask the user to enter them with browser_settings (you never see them), then open a new session."
+    )
+    if note not in session.events:
+        session.events.append(note)
+
+
+def _on_download(session: Session, download) -> None:
+    session.downloads = session.downloads[-4:] + [download]  # keep the last few; older ones are dropped
+    session.events.append(
+        f"The page started downloading {download.suggested_filename!r}. Call download (no ref) to save and read it."
+    )
+
+
+def _disposition_name(header: str) -> str:
+    """The filename from a Content-Disposition header, if it has one."""
+    m = re.search(r"filename\*\s*=\s*(?:UTF-8|utf-8)''([^;]+)", header)
+    if m:
+        from urllib.parse import unquote
+
+        return unquote(m.group(1).strip().strip('"'))
+    m = re.search(r'filename\s*=\s*"?([^";]+)"?', header)
+    return m.group(1).strip() if m else ""
+
+
 def _on_close(session: Session, page: Page) -> None:
     if page in session.pages:
         session.pages.remove(page)
     if session.active is page:
         session.active = session.pages[-1] if session.pages else None
+
+
+# Identity providers' sign-in hosts; the native window doesn't touch these pages while the user signs in.
+IDP_HOSTS = re.compile(
+    r"(^|\.)(accounts\.google\.com|login\.microsoftonline\.com|login\.live\.com|appleid\.apple\.com|"
+    r"id\.atlassian\.com|okta\.com|auth0\.com|login\.)",
+    re.I,
+)
+
+
+def _sign_in_url(url: str) -> bool:
+    u = urlparse(url)
+    return bool(SIGN_IN_PATH.search(u.path) or IDP_HOSTS.search(u.netloc or ""))
 
 
 def _base_domain(url: str) -> str:

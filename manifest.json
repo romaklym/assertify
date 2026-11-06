@@ -61,6 +61,10 @@
       "description": "Delete a saved login from disk."
     },
     {
+      "name": "browser_settings",
+      "description": "For sites with the browser's own sign-in box (HTTP Basic/NTLM) or a self-signed certificate: the user types that password and can trust the certificate in a small window. The agent never sees it."
+    },
+    {
       "name": "open_session",
       "description": "Open a headless browser already logged in as the saved profile. Returns a session id and page snapshot."
     },
@@ -131,6 +135,10 @@
     {
       "name": "read_text",
       "description": "Return the visible text of the page (for reading content, tables, messages, etc.)."
+    },
+    {
+      "name": "download",
+      "description": "Download a file from the site (export, report, invoice) and read it: CSV and Excel as tables, PDFs and text files as text."
     },
     {
       "name": "screenshot",

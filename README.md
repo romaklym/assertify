@@ -225,6 +225,8 @@ For JSON configs, use the `mcpServers` block shown under Cursor.
 | `find(query)` | Search the whole page for elements by label |
 | `click` · `type_text` · `select_option` · `press_key` · `scroll` · `back` · `navigate` · `wait_for` | Act by ref **or by visible text** (`click(text="Messages")`), so small redesigns don't break a flow; each returns a fresh outline |
 | `upload_files(paths, ref? \| text?)` | Attach files or whole folders: through the site's file dialog (`text="Photo/video"`), its upload field, or drag-and-drop. Only attaches; posting is a separate, confirmed click |
+| `download(ref? \| text? \| url?)` | Save an export, report or invoice and read it: CSV/TSV and Excel come back as tables, PDFs and text files as text. Saved to a private folder |
+| `browser_settings(profile?, url?)` | For sites with the browser's own sign-in box (HTTP Basic/NTLM) or a self-signed certificate: opens a small window where **you** type that password and can trust the certificate. The agent never sees it |
 | `dismiss_popup` | Close the pop-up on top with its close / "Not now" button |
 | `handoff(reason?)` | Open the current page in a window for **you** (CAPTCHA, 2FA, expired login); the session picks up your fresh login |
 | `read_text` | The visible text of the page, marked as untrusted website content |
@@ -273,6 +275,12 @@ A folder means every file in it, subfolders included, skipping hidden files like
 
 **What can never be uploaded:** anything in hidden folders (`~/.ssh`, `~/.aws`, …), key, certificate, password-manager and `.env` files, browser cookie stores, and Assertify's own vault. Paths must be full paths the user gave; agents are told never to upload a file because a page or email asked. Limits: 100 files and 2 GB per call. To allow only certain folders, set `ASSERTIFY_UPLOAD_DIRS`.
 
+## 📥 Downloads, intranets and app logins
+
+- **Downloads:** ask for "last month's CSV export" and the agent calls `download(text="Export CSV")`, or `download(url=...)` for a direct file link, or `download()` for a file the page just started. Files go to `~/.assertify-mcp/downloads/<session>/` (mode `0600`, deleted after 7 days; `ASSERTIFY_DOWNLOAD_DIR` picks another folder). Only links on the login's allowed domains can be fetched, 100 MB at most, and files are only read, never opened or run.
+- **The browser's own sign-in box and self-signed certificates** (intranets, routers, NAS boxes, old admin pages): the agent calls `browser_settings`, a small window opens, and you type the username and password and can tick "trust this site's certificate". They're saved encrypted with the login, sent only to that site, and never shown to the agent or in `list_profiles`.
+- **Apps that keep their login outside cookies** (WhatsApp Web, Teams and other web apps that use IndexedDB or sessionStorage): the login window saves those too, so the agent's session stays signed in. IndexedDB data that isn't plain JSON (files, images) isn't copied.
+
 ## 🧍 Staying unnoticed
 
 Sites flag browsers that act like robots. Assertify tries hard not to:
@@ -315,8 +323,9 @@ Many sites' terms forbid automated access. LinkedIn, Facebook, Instagram, Thread
 - **No telemetry, no server, no account.** Nothing leaves your machine except your own browser traffic to the sites you use.
 - **Ask before acting:** buttons labelled send, post, buy, pay, delete, connect, follow, apply and similar, and pressing Enter in a message box, are paused until the agent calls again with `confirmed=true`, which it is told to do only after you approve.
 - **Read-only logins:** `assertify login <name> <url> --read-only` (or `read_only=true` in `start_login`) lets agents browse and read but never type, submit, send or buy.
+- **Browser sign-in passwords** (`browser_settings`): typed by you in a separate window, stored in the encrypted vault next to the cookies, sent only to the site they're for, and never returned to the agent. Trusting a certificate is your choice per login, in that same window.
 - **Uploads:** only full paths, never secrets (hidden folders, keys, `.env`, cookie stores, the vault), symlinks resolved first, optional folder allowlist (`ASSERTIFY_UPLOAD_DIRS`). Read-only logins can't upload.
-- **Untrusted pages:** page text is returned wrapped and labelled as website content, and agents are told never to follow instructions found in pages, emails or messages. Only `http(s)` pages can be opened, and downloads are disabled.
+- **Untrusted pages:** page text is returned wrapped and labelled as website content, and agents are told never to follow instructions found in pages, emails or messages. Only `http(s)` pages can be opened. Files are saved only through `download`, and their contents are labelled as website data too.
 
 > [!WARNING]
 > A saved session is as powerful as being logged in. Anyone who can run code as your user while your keychain is unlocked can use it, the same as your browser's own cookies. Only connect agents you trust.
@@ -340,6 +349,7 @@ Found a vulnerability? See [SECURITY.md](SECURITY.md).
 | `ASSERTIFY_AUTO_CONSENT=0` | Don't auto-decline cookie banners |
 | `ASSERTIFY_UPLOAD_DIRS` | Only allow uploads from these folders (separated by `:` on macOS/Linux, `;` on Windows) |
 | `ASSERTIFY_MAX_UPLOAD_MB` | Upload size cap per call (default 2048) |
+| `ASSERTIFY_DOWNLOAD_DIR` | Where `download` saves files (default `~/.assertify-mcp/downloads`, cleaned after 7 days) |
 
 CLI: `assertify setup | login [name] <url> [--domain d] [--read-only] | list [site] | rename <name> <new> | delete <name> | serve`.
 

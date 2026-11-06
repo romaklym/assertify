@@ -10,6 +10,10 @@
 - Dropdowns no longer show their internal value as the label.
 - New `dialog_text` on `click`: answers a browser prompt box.
 - `complete_login` warns when the login window is still on a sign-in page (the login probably hadn't finished).
+- New `download` tool: saves exports, reports and invoices from a site and reads them back, CSV/TSV and Excel as tables, PDFs and text files as text. Click a download button, fetch a link with the login, or save the file the page just started.
+- New `browser_settings` tool for intranets, routers and old admin pages: you type the password for the browser's own sign-in box (HTTP Basic/NTLM) in a small window and can trust a self-signed certificate. The agent never sees the password; it's stored encrypted and sent only to that site. Agents get a hint to use it when a site asks for one or its certificate isn't trusted.
+- Logins that live outside cookies now stick: the login window saves sessionStorage and IndexedDB as well as localStorage (WhatsApp Web, Teams and similar web apps), and agent sessions save and restore sessionStorage.
+- The native Chrome login window now also saves a site's storage when you just close the window, reading it only from tabs that aren't sign-in pages.
 - Clearer empty snapshots: says when a page is still loading or failed to load its scripts, or is made only of frames. Page text no longer carries runs of blank lines.
 
 ## 0.5.0 (2026-11-05)

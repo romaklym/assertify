@@ -200,18 +200,20 @@ class NativeChrome:
 
     # ---- after the user is done ----
 
-    async def evaluate_pages(self, expression: str) -> list[tuple[str, object]]:
-        """Run JS in every open tab: [(url, value)]. Only used once the login is finished."""
+    async def evaluate_pages(self, expression: str, skip=None) -> list[tuple[str, object]]:
+        """Run JS in every open web tab, except those `skip(url)` picks: [(url, value)]."""
         out = []
         for t in await self.page_targets():
-            if not t.get("url", "").startswith("http"):
+            if not t.get("url", "").startswith("http") or (skip and skip(t["url"])):
                 continue
             try:
                 sid = (await self.send("Target.attachToTarget", {"targetId": t["targetId"], "flatten": True}))[
                     "sessionId"
                 ]
                 res = await self.send(
-                    "Runtime.evaluate", {"expression": expression, "returnByValue": True}, session=sid
+                    "Runtime.evaluate",
+                    {"expression": expression, "returnByValue": True, "awaitPromise": True},
+                    session=sid,
                 )
                 out.append((t["url"], res.get("result", {}).get("value")))
                 await self.send("Target.detachFromTarget", {"sessionId": sid})
