@@ -89,6 +89,22 @@ You need [uv](https://docs.astral.sh/uv/getting-started/installation/):
 - **macOS / Linux:** `curl -LsSf https://astral.sh/uv/install.sh | sh`
 - **Windows (PowerShell):** `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`
 
+Then add Assertify to your AI client with one command (no download or clone needed):
+
+| Client | Command |
+|---|---|
+| Claude Code | `claude mcp add -s user assertify -- uvx --from git+https://github.com/romaklym/assertify assertify serve` |
+| Codex | `codex mcp add assertify -- uvx --from git+https://github.com/romaklym/assertify assertify serve` |
+| Claude Desktop (macOS) | `curl -fLo /tmp/assertify.mcpb https://github.com/romaklym/assertify/releases/latest/download/assertify.mcpb && open /tmp/assertify.mcpb` |
+| VS Code (Copilot) | `code --add-mcp '{"name":"assertify","command":"uvx","args":["--from","git+https://github.com/romaklym/assertify","assertify","serve"]}'` |
+
+Other clients are under [Connect your AI client](#-connect-your-ai-client). Restart the client afterwards. The first start takes a minute while it installs, and Assertify downloads the browser it needs on first use (or uses your installed Chrome or Edge).
+
+To pin a version, add a tag: `git+https://github.com/romaklym/assertify@v0.6.0`.
+
+<details>
+<summary><b>Install from source instead</b></summary>
+
 ```bash
 git clone https://github.com/romaklym/assertify.git
 cd assertify
@@ -96,7 +112,8 @@ uv sync
 uv run assertify setup
 ```
 
-`setup` downloads the browser (Chromium, about 300 MB, once), checks your keychain, and prints the exact command to connect your AI client. If you skip it, Assertify downloads the browser on first use, or falls back to your installed Chrome or Edge.
+`setup` downloads the browser (Chromium, about 300 MB, once), checks your keychain, and prints the command to connect your AI client. Use `uv --directory /path/to/assertify run assertify serve` as the server command.
+</details>
 
 <details>
 <summary><b>Linux notes</b></summary>
@@ -107,33 +124,37 @@ uv run assertify setup
 
 </details>
 
-Then save your first login:
+Then save your first login, by asking your agent (*"log me in to GitHub"*) or from the terminal:
 
 ```bash
-uv run assertify login github https://github.com/login
+uvx --from git+https://github.com/romaklym/assertify assertify login github https://github.com/login
 ```
 
 A browser window opens. Sign in, then close the window (or press Enter in the terminal). Done. Your agent can now use GitHub as you.
 
 > [!TIP]
-> You can also just ask your agent: *"log me in to Notion"*. It calls `start_login`, the window opens, and the session saves when you close it.
+> When you ask your agent, it calls `start_login`, the window opens, and the session saves when you close it.
 
 ## 🔌 Connect your AI client
 
-Replace `/path/to/assertify` with where you cloned it (`assertify setup` prints the exact line for you).
+Every client runs the same command: `uvx --from git+https://github.com/romaklym/assertify assertify serve`. If you cloned the repo, use `uv --directory /path/to/assertify run assertify serve` instead.
 
 <details open>
 <summary><b>Claude Code</b></summary>
 
 ```bash
-claude mcp add -s user assertify -- uv --directory /path/to/assertify run assertify serve
+claude mcp add -s user assertify -- uvx --from git+https://github.com/romaklym/assertify assertify serve
 ```
 </details>
 
 <details>
 <summary><b>Claude Desktop</b></summary>
 
-**Easiest:** download [`assertify.mcpb`](https://github.com/romaklym/assertify/releases/latest/download/assertify.mcpb) and double-click it. Claude Desktop installs it with its icon and handles Python for you.
+**Easiest:** download [`assertify.mcpb`](https://github.com/romaklym/assertify/releases/latest/download/assertify.mcpb) and double-click it. Claude Desktop installs it with its icon and handles Python for you. From the terminal on macOS:
+
+```bash
+curl -fLo /tmp/assertify.mcpb https://github.com/romaklym/assertify/releases/latest/download/assertify.mcpb && open /tmp/assertify.mcpb
+```
 
 Or add it to `claude_desktop_config.json` by hand:
 
@@ -141,8 +162,8 @@ Or add it to `claude_desktop_config.json` by hand:
 {
   "mcpServers": {
     "assertify": {
-      "command": "uv",
-      "args": ["--directory", "/path/to/assertify", "run", "assertify", "serve"]
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/romaklym/assertify", "assertify", "serve"]
     }
   }
 }
@@ -153,16 +174,10 @@ Or add it to `claude_desktop_config.json` by hand:
 <summary><b>Codex</b></summary>
 
 ```bash
-codex mcp add assertify -- uv --directory /path/to/assertify run assertify serve
+codex mcp add assertify -- uvx --from git+https://github.com/romaklym/assertify assertify serve
 ```
 
-or in `~/.codex/config.toml`:
-
-```toml
-[mcp_servers.assertify]
-command = "uv"
-args = ["--directory", "/path/to/assertify", "run", "assertify", "serve"]
-```
+If the Codex app can't find `uvx`, use its full path (`which uvx`, e.g. `/opt/homebrew/bin/uvx`).
 </details>
 
 <details>
@@ -174,8 +189,8 @@ args = ["--directory", "/path/to/assertify", "run", "assertify", "serve"]
 {
   "mcpServers": {
     "assertify": {
-      "command": "uv",
-      "args": ["--directory", "/path/to/assertify", "run", "assertify", "serve"]
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/romaklym/assertify", "assertify", "serve"]
     }
   }
 }
@@ -185,18 +200,8 @@ args = ["--directory", "/path/to/assertify", "run", "assertify", "serve"]
 <details>
 <summary><b>VS Code (Copilot)</b></summary>
 
-`.vscode/mcp.json`:
-
-```json
-{
-  "servers": {
-    "assertify": {
-      "type": "stdio",
-      "command": "uv",
-      "args": ["--directory", "/path/to/assertify", "run", "assertify", "serve"]
-    }
-  }
-}
+```bash
+code --add-mcp '{"name":"assertify","command":"uvx","args":["--from","git+https://github.com/romaklym/assertify","assertify","serve"]}'
 ```
 </details>
 
@@ -206,7 +211,7 @@ args = ["--directory", "/path/to/assertify", "run", "assertify", "serve"]
 Any client that runs local (stdio) MCP servers works. Use this command:
 
 ```text
-uv --directory /path/to/assertify run assertify serve
+uvx --from git+https://github.com/romaklym/assertify assertify serve
 ```
 
 For JSON configs, use the `mcpServers` block shown under Cursor.
