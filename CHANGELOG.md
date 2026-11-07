@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.3 (2026-11-07)
 
 - Claude plugin: Assertify can be installed with `/plugin install assertify --marketplace romaklym/assertify` and is ready to submit to the Claude plugin directory. It bundles the MCP server and a `use-websites` skill.
 - Published on PyPI as `assertify-mcp`, so `uvx assertify-mcp` runs the server. New `assertify-mcp` command, the same as `assertify`.
