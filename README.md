@@ -98,6 +98,13 @@ Then add Assertify to your AI client with one command (no download or clone need
 | Claude Desktop (macOS) | `curl -fLo /tmp/assertify.mcpb https://github.com/romaklym/assertify/releases/latest/download/assertify.mcpb && open /tmp/assertify.mcpb` |
 | VS Code (Copilot) | `code --add-mcp '{"name":"assertify","command":"uvx","args":["--from","git+https://github.com/romaklym/assertify","assertify","serve"]}'` |
 
+**Or install the plugin**, which adds the server plus a skill that teaches the agent the login → browse → close flow:
+
+| Client | Commands |
+|---|---|
+| Claude Code | `/plugin marketplace add romaklym/assertify`, then `/plugin install assertify@assertify` |
+| Codex | `codex plugin marketplace add romaklym/assertify`, then `codex plugin add assertify@assertify` (or open `/plugins` in Codex) |
+
 Other clients are under [Connect your AI client](#-connect-your-ai-client). Restart the client afterwards. The first start takes a minute while it installs, and Assertify downloads the browser it needs on first use (or uses your installed Chrome or Edge).
 
 To pin a version, add a tag: `git+https://github.com/romaklym/assertify@v0.6.3`.

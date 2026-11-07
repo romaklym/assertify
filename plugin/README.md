@@ -10,7 +10,7 @@ The plugin contains:
 - **An MCP server** (`assertify`) that runs locally on your computer.
 - **A skill** (`use-websites`) that teaches Claude the login → browse → close flow and the safety rules.
 
-It works in Claude Code and in Cowork running on your computer. It doesn't load in claude.ai chat,
+It works in Claude Code, Cowork and Codex running on your computer. It doesn't load in claude.ai chat,
 because the server has to run on your machine. Claude Desktop chat users can install the `.mcpb`
 bundle from the [releases page](https://github.com/romaklym/assertify/releases/latest) instead.
 
@@ -19,7 +19,15 @@ bundle from the [releases page](https://github.com/romaklym/assertify/releases/l
 In Claude Code:
 
 ```
-/plugin install assertify --marketplace romaklym/assertify
+/plugin marketplace add romaklym/assertify
+/plugin install assertify@assertify
+```
+
+In Codex:
+
+```
+codex plugin marketplace add romaklym/assertify
+codex plugin add assertify@assertify
 ```
 
 ## Requirements

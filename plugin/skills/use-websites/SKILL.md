@@ -1,6 +1,6 @@
 ---
 name: use-websites
-description: Use a website through the user's saved login with the Assertify tools. Use when the user asks to check, read, fill in, post or do anything on a site they are signed in to (Gmail, GitHub, Discord, a company intranet, an admin panel), asks to log in to a site once so Claude can use it later, or asks to download a file or take a screenshot from a logged-in page.
+description: Use a website through the user's saved login with the Assertify tools. Use when the user asks to check, read, fill in, post or do anything on a site they are signed in to (Gmail, GitHub, Discord, a company intranet, an admin panel), asks to log in to a site once so it can be used later, or asks to download a file or take a screenshot from a logged-in page.
 ---
 
 # Using websites with Assertify

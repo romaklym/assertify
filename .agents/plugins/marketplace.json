@@ -1,0 +1,20 @@
+{
+  "name": "assertify",
+  "interface": {
+    "displayName": "Assertify"
+  },
+  "plugins": [
+    {
+      "name": "assertify",
+      "source": {
+        "source": "local",
+        "path": "./plugin"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}
