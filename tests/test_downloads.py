@@ -3,6 +3,7 @@
 import asyncio
 import base64
 import io
+import sys
 import threading
 import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -325,7 +326,8 @@ async def _download_by_click_url_and_latest(site):
         await m.snapshot(s.id)
         note, path, ctype = await m.download(s, None, "Export CSV", None, False)
         assert path.name == "01-q1 report.csv" and path.read_bytes() == CSV
-        assert (path.stat().st_mode & 0o777) == 0o600
+        if sys.platform != "win32":  # Windows has no Unix modes
+            assert (path.stat().st_mode & 0o777) == 0o600
         note, path, ctype = await m.download(s, None, None, site + "/report.xlsx", False)
         assert path.suffix == ".xlsx" and "Desk" in files.read(path, ctype)
         with pytest.raises(Exception, match="allowed domains"):

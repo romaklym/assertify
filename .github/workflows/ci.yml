@@ -22,4 +22,8 @@ jobs:
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run playwright install --with-deps chromium
-      - run: uv run pytest -v
+      - name: Tests
+        shell: bash
+        # Login tests open a visible window; Linux runners have no screen, so give them a virtual one
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then xvfb-run -a uv run pytest -v; else uv run pytest -v; fi

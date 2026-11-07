@@ -24,17 +24,19 @@ In Claude Code:
 
 ## Requirements
 
-- [uv](https://docs.astral.sh/uv/getting-started/installation/) (provides `uvx`)
+- [uv](https://docs.astral.sh/uv/getting-started/installation/)
+- Python 3.12 or newer. If you don't have it, uv downloads it for you the first time.
 - macOS, Windows or Linux
 
 ## What it runs, stores and sends
 
 Everything is listed here so you know exactly what the plugin does on your computer.
 
-- **What runs:** the plugin starts `uvx assertify-mcp==0.6.3`. uv downloads that exact version of
-  the open-source [`assertify-mcp`](https://pypi.org/project/assertify-mcp/) package from PyPI,
-  together with its dependencies (`mcp`, `playwright`, `cryptography`, `keyring`, `websockets`,
-  `pypdf`), and runs it on your computer over stdio.
+- **What runs:** the plugin starts `uv run --frozen --no-dev --project ${CLAUDE_PLUGIN_ROOT} assertify-mcp`.
+  uv installs the open-source [`assertify-mcp`](https://pypi.org/project/assertify-mcp/) package,
+  version 0.6.3, from PyPI with its dependencies (`mcp`, `playwright`, `cryptography`, `keyring`,
+  `websockets`, `pypdf`), at the exact versions and file hashes recorded in this plugin's `uv.lock`,
+  into a `.venv` folder inside the plugin. Then it runs the server on your computer over stdio.
 - **Browser:** it uses your installed Chrome. Without Chrome, it downloads Playwright's Chromium
   once (about 300 MB) from Playwright's servers, and falls back to Edge if that fails. Sign-in
   windows open your own Chrome with a throwaway profile and a DevTools port bound to `127.0.0.1`
