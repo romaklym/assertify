@@ -1,0 +1,15 @@
+{
+  "name": "assertify",
+  "description": "Assertify: let Claude use websites you are logged in to, with sessions kept encrypted on your machine.",
+  "owner": {
+    "name": "Roman Klym",
+    "url": "https://github.com/romaklym"
+  },
+  "plugins": [
+    {
+      "name": "assertify",
+      "source": "./plugin",
+      "description": "Use websites you're logged in to. Sessions stay encrypted on your machine."
+    }
+  ]
+}

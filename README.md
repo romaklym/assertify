@@ -1,7 +1,7 @@
 <!-- mcp-name: io.github.romaklym/assertify -->
 <div align="center">
 
-<img src="assets/icon.png" width="112" alt="Assertify logo">
+<img src="https://raw.githubusercontent.com/romaklym/assertify/main/assets/icon.png" width="112" alt="Assertify logo">
 
 # Assertify
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Claude plugin: Assertify can be installed with `/plugin install assertify --marketplace romaklym/assertify` and is ready to submit to the Claude plugin directory. It bundles the MCP server and a `use-websites` skill.
+- Published on PyPI as `assertify-mcp`, so `uvx assertify-mcp` runs the server. New `assertify-mcp` command, the same as `assertify`.
+
 ## 0.6.2 (2026-11-06)
 
 - Fixed downloading Discord images and other attachments that open in a viewer: `download` with the link's ref now fetches the file the link points to instead of clicking it and waiting.

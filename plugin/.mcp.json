@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "assertify": {
+      "command": "uvx",
+      "args": ["assertify-mcp==0.6.3"]
+    }
+  }
+}

@@ -1,0 +1,40 @@
+name: Publish to PyPI
+
+# Runs when a version tag is pushed (v0.6.3, v0.7.0, ...).
+# Uses PyPI trusted publishing, so no API token is stored in the repo.
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Check the tag matches the package version
+        run: |
+          want="${GITHUB_REF_NAME#v}"
+          have=$(grep -m1 '^version' pyproject.toml | cut -d'"' -f2)
+          plugin=$(python3 -c "import json;print(json.load(open('plugin/.claude-plugin/plugin.json'))['version'])")
+          test "$want" = "$have" || { echo "tag $want != pyproject $have"; exit 1; }
+          test "$want" = "$plugin" || { echo "tag $want != plugin.json $plugin"; exit 1; }
+          grep -q "assertify-mcp==$want" plugin/.mcp.json || { echo "plugin/.mcp.json is not pinned to $want"; exit 1; }
+      - run: uv build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
