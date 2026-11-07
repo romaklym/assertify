@@ -68,4 +68,6 @@ A browser window opens for you to sign in. Close it when you're done, and Claude
 
 Source code, issues and full documentation: https://github.com/romaklym/assertify
 
+Privacy policy: https://github.com/romaklym/assertify/blob/main/PRIVACY.md
+
 MIT licensed. See [LICENSE](LICENSE).

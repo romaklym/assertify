@@ -3,9 +3,22 @@
   "displayName": "Assertify",
   "version": "0.6.3",
   "description": "Use websites you're logged in to. Log in once in a real browser window; the session stays encrypted on your machine and Claude can then browse, read, click and type on that site as you, with send, post, buy and delete paused for your approval.",
-  "author": { "name": "Roman Klym", "url": "https://github.com/romaklym" },
+  "author": {
+    "name": "Roman Klym",
+    "url": "https://github.com/romaklym"
+  },
   "homepage": "https://github.com/romaklym/assertify",
   "repository": "https://github.com/romaklym/assertify",
   "license": "MIT",
-  "keywords": ["browser", "login", "sessions", "automation", "playwright", "mcp"]
+  "keywords": [
+    "browser",
+    "login",
+    "sessions",
+    "automation",
+    "playwright",
+    "mcp"
+  ],
+  "documentationUrl": "https://github.com/romaklym/assertify#readme",
+  "supportUrl": "https://github.com/romaklym/assertify/issues",
+  "privacyPolicyUrl": "https://github.com/romaklym/assertify/blob/main/PRIVACY.md"
 }
