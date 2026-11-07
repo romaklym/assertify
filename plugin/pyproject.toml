@@ -1,5 +1,5 @@
-# Locks the exact Assertify release and every dependency (with hashes) that this plugin runs.
-# .mcp.json starts it with `uv run --frozen`, so nothing outside uv.lock is installed.
+# Records the exact Assertify release and its dependencies (versions and hashes) for the plugin directory.
+# .mcp.json starts that same version with `uvx assertify-mcp==0.6.3`.
 [project]
 name = "assertify-plugin"
 version = "0.6.3"
