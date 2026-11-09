@@ -11,3 +11,7 @@ server.json
 .DS_Store
 CONTRIBUTING.md
 CHANGELOG.md
+mobile/
+deploy/
+fly.toml
+scripts/
