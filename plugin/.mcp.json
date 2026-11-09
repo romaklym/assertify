@@ -2,7 +2,7 @@
   "mcpServers": {
     "assertify": {
       "type": "http",
-      "url": "https://assertify.co/mcp"
+      "url": "https://mcp.assertify.co/mcp"
     }
   }
 }

@@ -1,6 +1,6 @@
 # Hosting Assertify Cloud
 
-Assertify Cloud is the public MCP server at `https://assertify.co/mcp` that the Claude and OpenAI
+Assertify Cloud is the public MCP server at `https://mcp.assertify.co/mcp` that the Claude and OpenAI
 plugin directories point to. It relays tool calls to `assertify connect` on each user's computer;
 no browser runs on the server. Code: [`src/assertify/cloud.py`](../src/assertify/cloud.py).
 
@@ -13,15 +13,14 @@ The SQLite database (app registrations, computer IDs, hashed tokens) lives on a 
 fly apps create assertify
 fly volumes create assertify_data --size 1 --region iad
 fly deploy
-fly certs add assertify.co
+fly certs add mcp.assertify.co
 ```
 
-`fly certs add` prints the DNS records to add at your domain registrar (an `A` and `AAAA` record
-for `assertify.co`, or a `CNAME` for a subdomain). Once the certificate is issued, check:
+`fly certs add` prints the DNS records to add at your domain registrar (a `CNAME` record for `mcp`). Once the certificate is issued, check:
 
 ```
-curl https://assertify.co/healthz
-curl https://assertify.co/.well-known/oauth-authorization-server
+curl https://mcp.assertify.co/healthz
+curl https://mcp.assertify.co/.well-known/oauth-authorization-server
 ```
 
 ## OpenAI domain verification

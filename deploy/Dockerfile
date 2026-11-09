@@ -1,4 +1,4 @@
-# Assertify Cloud: the public MCP relay at https://assertify.co/mcp (no browser runs here).
+# Assertify Cloud: the public MCP relay at https://mcp.assertify.co/mcp (no browser runs here).
 FROM python:3.13-slim
 COPY --from=ghcr.io/astral-sh/uv:0.9 /uv /bin/uv
 WORKDIR /app

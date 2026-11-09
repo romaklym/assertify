@@ -98,22 +98,22 @@ Then add Assertify to your AI client with one command (no download or clone need
 | Claude Desktop (macOS) | `curl -fLo /tmp/assertify.mcpb https://github.com/romaklym/assertify/releases/latest/download/assertify.mcpb && open /tmp/assertify.mcpb` |
 | VS Code (Copilot) | `code --add-mcp '{"name":"assertify","command":"uvx","args":["--from","git+https://github.com/romaklym/assertify","assertify","serve"]}'` |
 
-**Or install the plugin.** It connects to the hosted relay at `https://assertify.co/mcp` and adds a skill that teaches the agent the login → browse → close flow:
+**Or install the plugin.** It connects to the hosted relay at `https://mcp.assertify.co/mcp` and adds a skill that teaches the agent the login → browse → close flow:
 
 | Client | Commands |
 |---|---|
 | Claude Code | `/plugin marketplace add romaklym/assertify`, then `/plugin install assertify@assertify` |
 | Codex | `codex plugin marketplace add romaklym/assertify`, then `codex plugin add assertify@assertify` (or open `/plugins` in Codex) |
-| claude.ai, ChatGPT, any client with remote MCP | Add a custom connector with the URL `https://assertify.co/mcp` |
+| claude.ai, ChatGPT, any client with remote MCP | Add a custom connector with the URL `https://mcp.assertify.co/mcp` |
 
 The relay reaches the browser on your own computer, so run the companion there and keep it running:
 
 ```
 uvx assertify-mcp setup     # once: installs the browser
-uvx assertify-mcp connect   # links this computer to assertify.co
+uvx assertify-mcp connect   # links this computer to mcp.assertify.co
 ```
 
-The first time an app connects, it shows a page on assertify.co with a code. Run `uvx assertify-mcp link CODE` and confirm the app's name. Your logins stay on your computer: assertify.co only passes tool calls and their results through and stores none of them. `uvx assertify-mcp unlink` revokes every linked app. See [PRIVACY.md](PRIVACY.md) and [deploy/README.md](deploy/README.md).
+The first time an app connects, it shows a page on mcp.assertify.co with a code. Run `uvx assertify-mcp link CODE` and confirm the app's name. Your logins stay on your computer: mcp.assertify.co only passes tool calls and their results through and stores none of them. `uvx assertify-mcp unlink` revokes every linked app. See [PRIVACY.md](PRIVACY.md) and [deploy/README.md](deploy/README.md).
 
 Other clients are under [Connect your AI client](#-connect-your-ai-client). Restart the client afterwards. The first start takes a minute while it installs, and Assertify downloads the browser it needs on first use (or uses your installed Chrome or Edge).
 
@@ -314,17 +314,6 @@ Sites flag browsers that act like robots. Assertify tries hard not to:
 
 Set `ASSERTIFY_HUMANIZE=0` to turn the human input off (faster; fine for your own tools and test sites).
 
-## 📱 On your phone
-
-Assertify also runs on iPhone and Android, for agents on your phone such as Claude mobile or ChatGPT/Codex.
-
-1. Run the relay on a computer or server: `assertify relay --public-url https://relay.example.com` (or no flag on your home Wi-Fi). It prints an MCP URL and a pairing link.
-2. Install the app from [`mobile/`](mobile/), tap **Pair** and paste the link.
-3. Log in to sites in the app's browser by hand.
-4. Add the MCP URL to your agent as a custom connector and ask away: "check my LinkedIn messages".
-
-The agent works in a hidden browser on the phone, with the same tools, pop-up handling and confirmations as on the desktop. Your logins never leave the phone; the relay only passes commands and page snapshots. Anyone with the relay token can use your logged-in sites, so keep it secret and use HTTPS when the relay is on the internet. See [mobile/README.md](mobile/README.md).
-
 ## 🪟 Pop-ups, dialogs and expired logins
 
 - **Cookie banners** are answered with "Reject all" / "Only necessary" automatically (`ASSERTIFY_AUTO_CONSENT=0` to turn off).
@@ -386,8 +375,8 @@ Sessions expire on the site's own schedule, and some sites ask for a CAPTCHA or 
 **Will a site redesign break my agent?**
 Less than you'd think. The agent reads the page fresh every step and can click by visible text (`click(text="Messages")`) instead of fixed selectors, so it adapts like a person would. A full redesign can still confuse it; it will tell you what it sees.
 
-**Can I use it from my phone or a server?**
-Not yet. Assertify is local-first by design: your sessions never leave your computer.
+**Can I use it from my phone?**
+Through the hosted connector, yes: add `https://mcp.assertify.co/mcp` to Claude or ChatGPT and keep `uvx assertify-mcp connect` running on your computer. The browser and your logins still stay on the computer; there's no phone app.
 
 **Known limits**
 A few apps keep their sign-in in encryption keys the browser won't let anyone copy; those logins can't move to the agent's browser (the save message says so). No anti-detection is perfect: a site determined to spot automation may still do so. Snapshots don't look inside iframes or closed shadow roots yet.

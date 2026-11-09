@@ -3,7 +3,7 @@
 Last updated: 9 November 2026
 
 Assertify is open-source software that runs on your own computer. It has no accounts and no
-telemetry. The optional hosted relay at assertify.co, which lets Claude, ChatGPT and Codex reach your
+telemetry. The optional hosted relay at mcp.assertify.co, which lets Claude, ChatGPT and Codex reach your
 computer, is described below; it passes data through without storing it.
 
 ## What Assertify stores, and where
@@ -29,9 +29,9 @@ the whole folder.
 
 Without the hosted relay, Assertify sends nothing to the author or to any other third party.
 
-## The hosted relay (assertify.co)
+## The hosted relay (mcp.assertify.co)
 
-When you add Assertify to an AI app through `https://assertify.co/mcp` and run
+When you add Assertify to an AI app through `https://mcp.assertify.co/mcp` and run
 `assertify connect`, the relay, run by the author, passes data between that app and your computer.
 
 - **Passed through, not stored:** tool calls from the AI app and their results (page outlines,
@@ -54,12 +54,6 @@ The relay isn't used for advertising, isn't sold or shared, and isn't used to tr
 
 You type passwords into the site's own sign-in page in a visible window. The AI agent never sees
 them.
-
-## Phone relay (optional)
-
-If you choose to run `assertify relay`, your logins stay on your phone. The relay, which you host
-yourself, passes commands and page snapshots between your AI client and the phone. It isn't run by
-the author.
 
 ## Contact
 

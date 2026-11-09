@@ -1,9 +1,9 @@
-"""Assertify Cloud: the public MCP server at https://assertify.co/mcp.
+"""Assertify Cloud: the public MCP server at https://mcp.assertify.co/mcp.
 
 Claude, ChatGPT and Codex only list MCP servers that live at a public HTTPS address. Assertify's
 browser and saved logins live on the user's own computer, so this server is a relay:
 
-    AI app --MCP + OAuth--> assertify.co/mcp --WebSocket--> `assertify connect` on the user's computer
+    AI app --MCP + OAuth--> mcp.assertify.co/mcp --WebSocket--> `assertify connect` on the user's computer
 
 The companion opens one outbound WebSocket (no open ports), tells the server which tools it has,
 and runs each tool call in its local browser. Logins never leave the computer; this server only
@@ -602,7 +602,7 @@ def app(base_url: str, db_path: str):
 def serve(host: str = "0.0.0.0", port: int = 8080) -> None:
     import uvicorn
 
-    base = os.environ.get("ASSERTIFY_CLOUD_URL", "https://assertify.co")
+    base = os.environ.get("ASSERTIFY_CLOUD_URL", "https://mcp.assertify.co")
     db = os.environ.get("ASSERTIFY_CLOUD_DB", "/data/assertify-cloud.db")
     print(f"Assertify Cloud {__version__}: {base}/mcp", flush=True)
     uvicorn.run(

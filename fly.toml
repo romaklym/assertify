@@ -6,7 +6,7 @@ primary_region = "iad"
   dockerfile = "deploy/Dockerfile"
 
 [env]
-  ASSERTIFY_CLOUD_URL = "https://assertify.co"
+  ASSERTIFY_CLOUD_URL = "https://mcp.assertify.co"
   ASSERTIFY_CLOUD_DB = "/data/assertify-cloud.db"
 
 [mounts]

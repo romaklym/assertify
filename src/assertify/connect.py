@@ -25,7 +25,7 @@ import websockets
 
 from .vault import vault_home
 
-DEFAULT_URL = "https://assertify.co"
+DEFAULT_URL = "https://mcp.assertify.co"
 MAX_FRAME = 32 * 1024 * 1024
 
 

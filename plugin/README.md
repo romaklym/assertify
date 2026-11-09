@@ -7,7 +7,7 @@ buy, delete or connect are paused until you approve them.
 
 The plugin contains:
 
-- **An MCP connection** to `https://assertify.co/mcp`. It relays each tool call to the Assertify
+- **An MCP connection** to `https://mcp.assertify.co/mcp`. It relays each tool call to the Assertify
   companion on your own computer, where the browser and your saved logins are.
 - **A skill** (`use-websites`) that teaches Claude the login → browse → close flow and the safety rules.
 
@@ -36,22 +36,22 @@ uvx assertify-mcp setup
 uvx assertify-mcp connect
 ```
 
-The first time Claude uses Assertify, it opens an assertify.co page with a code. Run
+The first time Claude uses Assertify, it opens an mcp.assertify.co page with a code. Run
 `uvx assertify-mcp link CODE` on your computer and confirm the app's name. That links this Claude
 (or Codex) to your computer. There's no account or password.
 
 ## How it works, and what is sent where
 
 ```
-Claude --MCP + OAuth--> assertify.co --WebSocket--> assertify connect (your computer) --> browser
+Claude --MCP + OAuth--> mcp.assertify.co --WebSocket--> assertify connect (your computer) --> browser
 ```
 
 - **On your computer:** `assertify connect` runs the open-source
   [`assertify-mcp`](https://pypi.org/project/assertify-mcp/) package. It opens one outbound
-  connection to assertify.co (no open ports). Saved logins are cookies and site storage in
+  connection to mcp.assertify.co (no open ports). Saved logins are cookies and site storage in
   `~/.assertify-mcp/profiles/`, encrypted with a key kept in your system keychain. Screenshots and
   downloads go to folders under `~/.assertify-mcp/`.
-- **assertify.co:** it relays tool calls and their results (page outlines, text, screenshots)
+- **mcp.assertify.co:** it relays tool calls and their results (page outlines, text, screenshots)
   between Claude and your computer, and stores none of them. It keeps only what sign-in needs: the
   registered app's name and redirect address, your computer's ID, and hashed tokens. Your logins,
   cookies and keychain key never leave your computer.

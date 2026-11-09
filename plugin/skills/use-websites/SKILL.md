@@ -8,7 +8,7 @@ description: Use a website through the user's saved login with the Assertify too
 Assertify drives a real browser with the user's saved, encrypted logins. Each saved login is a
 **profile** (for example `github` or `work-gmail`). A site can have several profiles, one per account.
 
-The browser and the logins live on the user's own computer. The tools reach it through assertify.co,
+The browser and the logins live on the user's own computer. The tools reach it through mcp.assertify.co,
 which relays each call to the Assertify companion running there.
 
 ## If the computer isn't connected

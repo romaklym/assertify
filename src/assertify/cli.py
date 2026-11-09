@@ -76,17 +76,12 @@ def main() -> None:
     rn.add_argument("new_name")
     dl = sub.add_parser("delete", help="Delete a saved session")
     dl.add_argument("profile")
-    rl = sub.add_parser("relay", help="Serve the Assertify phone app to remote agents (Claude mobile, Codex)")
-    rl.add_argument("--host", default="127.0.0.1", help="Address to listen on (0.0.0.0 for your LAN)")
-    rl.add_argument("--port", type=int, default=8765)
-    rl.add_argument("--public-url", help="The https:// address agents reach this relay at (e.g. a tunnel)")
-    rl.add_argument("--new-token", action="store_true", help="Make a new secret (unpairs the phone)")
-    sub.add_parser("connect", help="Let AI apps linked through assertify.co use this computer's browser")
+    sub.add_parser("connect", help="Let AI apps linked through mcp.assertify.co use this computer's browser")
     lk = sub.add_parser("link", help="Approve an AI app with the code from its Assertify sign-in page")
     lk.add_argument("code")
     lk.add_argument("--yes", action="store_true", help="Don't ask to confirm")
-    sub.add_parser("unlink", help="Revoke every AI app's access to this computer through assertify.co")
-    cl = sub.add_parser("cloud", help="Run the public Assertify Cloud server (for hosting assertify.co)")
+    sub.add_parser("unlink", help="Revoke every AI app's access to this computer through mcp.assertify.co")
+    cl = sub.add_parser("cloud", help="Run the public Assertify Cloud server (for hosting mcp.assertify.co)")
     cl.add_argument("--host", default="0.0.0.0")
     cl.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8080")))
     args = p.parse_args()
@@ -115,10 +110,6 @@ def main() -> None:
         elif args.cmd == "rename":
             Vault().rename(args.profile, args.new_name)
             print(f"Renamed to {args.new_name!r}.")
-        elif args.cmd == "relay":
-            from .relay import serve
-
-            serve(args.host, args.port, args.public_url, args.new_token)
         elif args.cmd == "connect":
             from .connect import connect
 

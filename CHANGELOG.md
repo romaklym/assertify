@@ -2,8 +2,9 @@
 
 ## 0.7.0 (unreleased)
 
-- Assertify Cloud: a public MCP server at `https://assertify.co/mcp` with OAuth sign-in (dynamic client registration and PKCE). It relays tool calls to the new `assertify connect` companion on your computer over one outbound WebSocket, so claude.ai, ChatGPT, Codex and the plugin directories can use Assertify while the browser and logins stay on your computer. `assertify link CODE` approves an app from its sign-in page, `assertify unlink` revokes them all, and `assertify cloud` runs the server (see `deploy/README.md`).
-- The Claude and Codex plugin now connects to `https://assertify.co/mcp` instead of starting a local server, and ships only Markdown, JSON and images. It also has portable `plugin.json` and `mcp.json` manifests.
+- Assertify Cloud: a public MCP server at `https://mcp.assertify.co/mcp` with OAuth sign-in (dynamic client registration and PKCE). It relays tool calls to the new `assertify connect` companion on your computer over one outbound WebSocket, so claude.ai, ChatGPT, Codex and the plugin directories can use Assertify while the browser and logins stay on your computer. `assertify link CODE` approves an app from its sign-in page, `assertify unlink` revokes them all, and `assertify cloud` runs the server (see `deploy/README.md`).
+- The Claude and Codex plugin now connects to `https://mcp.assertify.co/mcp` instead of starting a local server, and ships only Markdown, JSON and images. It also has portable `plugin.json` and `mcp.json` manifests.
+- Removed the unfinished phone app (`mobile/`) and `assertify relay`. To use Assertify from Claude or ChatGPT on a phone, add the hosted connector; the browser runs on your computer.
 - Tool hints are now exact: `click`, `type_text`, `press_key` and `delete_profile` are marked destructive, `scroll` and `wait_for` read-only, and profile tools as not reaching the web.
 
 ## 0.6.3 (2026-11-07)

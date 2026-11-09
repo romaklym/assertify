@@ -2,7 +2,7 @@
   "name": "assertify",
   "displayName": "Assertify",
   "version": "0.7.0",
-  "description": "Use websites you're logged in to. Claude connects to assertify.co, which relays to the Assertify companion on your own computer: the browser and your encrypted logins never leave it. Claude can browse, read, click and type on those sites as you, with send, post, buy and delete paused for your approval.",
+  "description": "Use websites you're logged in to. Claude connects to mcp.assertify.co, which relays to the Assertify companion on your own computer: the browser and your encrypted logins never leave it. Claude can browse, read, click and type on those sites as you, with send, post, buy and delete paused for your approval.",
   "author": {
     "name": "Roman Klym",
     "url": "https://github.com/romaklym"
