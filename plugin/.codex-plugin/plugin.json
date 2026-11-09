@@ -22,7 +22,7 @@
   "interface": {
     "displayName": "Assertify",
     "shortDescription": "Use websites you're logged in to",
-    "longDescription": "Log in once in a real browser window. The session is saved encrypted on your computer, and Codex can then open that site as you: read pages, click, type, fill in forms, download files and take screenshots. Clicks that send, post, buy, delete or connect wait for your approval. Runs locally with uvx; needs uv installed.",
+    "longDescription": "Log in once in a real browser window on your computer. The session is saved encrypted there, and Codex can then open that site as you: read pages, click, type, fill in forms, download files and take screenshots. Clicks that send, post, buy, delete or connect wait for your approval. Codex connects to mcp.assertify.co, which relays each request to the browser on your computer; your logins never leave it. Run `uvx assertify-mcp connect` on that computer (needs uv), and approve Codex with `uvx assertify-mcp link CODE` the first time.",
     "developerName": "Roman Klym",
     "category": "Productivity",
     "capabilities": [
