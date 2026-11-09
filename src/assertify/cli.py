@@ -81,6 +81,8 @@ def main() -> None:
     lk.add_argument("code")
     lk.add_argument("--yes", action="store_true", help="Don't ask to confirm")
     sub.add_parser("unlink", help="Revoke every AI app's access to this computer through mcp.assertify.co")
+    dm = sub.add_parser("demo", help="Run a reviewer demo computer: a fake mail site plus `connect`")
+    dm.add_argument("--port", type=int, default=8090, help="Port for the demo site on 127.0.0.1")
     cl = sub.add_parser("cloud", help="Run the public Assertify Cloud server (for hosting mcp.assertify.co)")
     cl.add_argument("--host", default="0.0.0.0")
     cl.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8080")))
@@ -110,6 +112,10 @@ def main() -> None:
         elif args.cmd == "rename":
             Vault().rename(args.profile, args.new_name)
             print(f"Renamed to {args.new_name!r}.")
+        elif args.cmd == "demo":
+            from .demo import demo
+
+            sys.exit(demo(args.port))
         elif args.cmd == "connect":
             from .connect import connect
 

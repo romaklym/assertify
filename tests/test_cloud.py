@@ -84,7 +84,7 @@ def _sign_in(base: str, approve) -> dict:
         code = page.split('class="code">')[1].split("<")[0]
         assert "Test AI" in page and h.get("/link/status", params={"req": req}).json()["redirect"] is None
 
-        approve(code)  # the user runs `assertify link CODE` on their computer
+        approve(code, req)  # the user runs `assertify link CODE` on their computer
 
         redirect = h.get("/link/status", params={"req": req}).json()["redirect"]
         q = parse_qs(urlparse(redirect).query)
@@ -130,7 +130,7 @@ def test_cloud_end_to_end(server, site):  # noqa: F811
     Vault().save(
         "demo", {"cookies": [COOKIE], "origins": []}, {"start_url": site + "inbox", "allowed_domains": ["127.0.0.1"]}
     )
-    tokens = _sign_in(server, lambda code: assert_ok(connect.link(code, yes=True)))
+    tokens = _sign_in(server, lambda code, _req: assert_ok(connect.link(code, yes=True)))
 
     async def go():
         comp = asyncio.create_task(connect.run_connect())
@@ -158,7 +158,7 @@ def test_mcp_needs_a_token(server):
 
 
 def test_offline_computer_and_refresh(server):
-    tokens = _sign_in(server, lambda code: assert_ok(connect.link(code, yes=True)))
+    tokens = _sign_in(server, lambda code, _req: assert_ok(connect.link(code, yes=True)))
 
     async def go():
         async with (

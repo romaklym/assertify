@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Reviewer demo: `assertify demo` runs a made-up mail site ("Northwind Mail") with a saved login plus `assertify connect`, and the hosted sign-in page can link app reviewers to that demo computer with a passphrase (`ASSERTIFY_REVIEW_PASSPHRASE` and `ASSERTIFY_REVIEW_DEVICE`; off unless both are set). Deploy steps are in `deploy/README.md`.
+- `assertify connect` can start again in the same process after it stops; it used to keep the closed browser.
+
 ## 0.7.0 (2026-11-09)
 
 - Assertify Cloud: a public MCP server at `https://mcp.assertify.co/mcp` with OAuth sign-in (dynamic client registration and PKCE). It relays tool calls to the new `assertify connect` companion on your computer over one outbound WebSocket, so claude.ai, ChatGPT, Codex and the plugin directories can use Assertify while the browser and logins stay on your computer. `assertify link CODE` approves an app from its sign-in page, `assertify unlink` revokes them all, and `assertify cloud` runs the server (see `deploy/README.md`).

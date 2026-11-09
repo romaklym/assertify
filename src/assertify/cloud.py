@@ -30,7 +30,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.auth.provider import (
@@ -509,10 +509,46 @@ def build(base_url: str, db_path: str) -> tuple[CloudMCP, Hub, Provider]:
             "once your computer confirms. The code expires in 15 minutes.</p>"
             '<p>New to Assertify? Install <a href="https://docs.astral.sh/uv/">uv</a>, then run '
             "<code>uvx assertify-mcp setup</code> first.</p>"
-            f"<script>const r={json.dumps(r)};(async function poll(){{try{{const x=await fetch('/link/status?req='+"
+            + (
+                '<details><summary>Reviewing this app?</summary><form method="post" action="/link/review">'
+                f'<input type="hidden" name="req" value="{html.escape(r)}">'
+                "<p>Enter the review passphrase to connect to the demo computer instead.</p>"
+                '<input type="password" name="passphrase" autocomplete="off" required> '
+                "<button>Connect to the demo</button></form></details>"
+                if review_enabled()
+                else ""
+            )
+            + f"<script>const r={json.dumps(r)};(async function poll(){{try{{const x=await fetch('/link/status?req='+"
             "encodeURIComponent(r));const j=await x.json();if(j.redirect){location.href=j.redirect;return}"
             "if(j.expired){location.reload();return}}catch(e){}setTimeout(poll,1500)})();</script>",
         )
+
+    def review_enabled() -> bool:
+        return bool(os.environ.get("ASSERTIFY_REVIEW_PASSPHRASE") and os.environ.get("ASSERTIFY_REVIEW_DEVICE"))
+
+    failures: dict[str, list[float]] = {}
+
+    @mcp.custom_route("/link/review", methods=["POST"])
+    async def link_review(req: Request) -> Response:
+        """App reviewers link to the demo computer (`assertify demo`) with a passphrase instead of a terminal."""
+        form = await req.form()
+        r = str(form.get("req", ""))
+        back = f"{base}/link?req={quote(r)}"
+        row = store.one("SELECT code FROM links WHERE req = ? AND expires >= ? AND device_id IS NULL", r, _now())
+        demo_device = os.environ.get("ASSERTIFY_REVIEW_DEVICE", "")
+        if not review_enabled() or not row or not store.one("SELECT 1 FROM devices WHERE id = ?", demo_device):
+            return _page("Not available", f'<h1>The demo isn\'t available</h1><p><a href="{back}">Go back</a></p>', 404)
+        ip = req.client.host if req.client else "?"
+        now = time.time()
+        recent = [t for t in failures.get(ip, []) if now - t < 3600]
+        if len(recent) >= 10:
+            return _page("Too many tries", "<h1>Too many wrong passphrases</h1><p>Try again in an hour.</p>", 429)
+        given = str(form.get("passphrase", ""))
+        if not secrets.compare_digest(_hash(given), _hash(os.environ["ASSERTIFY_REVIEW_PASSPHRASE"])):
+            failures[ip] = recent + [now]
+            return _page("Wrong passphrase", f'<h1>Wrong passphrase</h1><p><a href="{back}">Try again</a></p>', 403)
+        store.q("UPDATE links SET device_id = ? WHERE code = ?", demo_device, row["code"])
+        return RedirectResponse(back, status_code=303)
 
     @mcp.custom_route("/link/status", methods=["GET"])
     async def link_status(req: Request) -> Response:

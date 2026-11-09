@@ -1606,6 +1606,7 @@ class BrowserManager:
             await self._headless.close()
         if self._pw:
             await self._pw.stop()
+        self._headless = self._pw = None  # so a later run starts a fresh browser
 
 
 async def _on_dialog(session: Session, dialog: Dialog) -> None:

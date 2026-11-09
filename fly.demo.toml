@@ -1,0 +1,24 @@
+# Assertify demo computer on Fly.io (app reviewers only). See deploy/README.md, "Reviewer demo".
+app = "assertify-demo"
+primary_region = "iad"
+
+[build]
+  dockerfile = "deploy/demo.Dockerfile"
+
+[env]
+  ASSERTIFY_CLOUD_URL = "https://mcp.assertify.co"
+  ASSERTIFY_HOME = "/data"
+  ASSERTIFY_BROWSER = "chromium"
+  ASSERTIFY_NO_AUTO_INSTALL = "1"
+  ASSERTIFY_HUMANIZE = "0"
+  # ASSERTIFY_PASSPHRASE (the vault key) is a secret: fly secrets set -c fly.demo.toml ...
+
+# Keeps the device ID and its secret across restarts, so the server's ASSERTIFY_REVIEW_DEVICE stays valid.
+[mounts]
+  source = "assertify_demo_data"
+  destination = "/data"
+
+# No [http_service]: nothing connects in. The machine dials out to the server and stays running.
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"
