@@ -1,7 +1,7 @@
 {
   "name": "assertify",
-  "version": "0.6.3",
-  "description": "Use websites you're logged in to. Log in once in a real browser window; the session stays encrypted on your machine and the agent can then browse, read, click and type on that site as you, with send, post, buy and delete paused for your approval.",
+  "version": "0.7.0",
+  "description": "Use websites you're logged in to. The agent connects to assertify.co, which relays to the Assertify companion on your own computer: the browser and your encrypted logins never leave it. It can browse, read, click and type on those sites as you, with send, post, buy and delete paused for your approval.",
   "author": {
     "name": "Roman Klym",
     "url": "https://github.com/romaklym"
@@ -9,7 +9,14 @@
   "homepage": "https://github.com/romaklym/assertify",
   "repository": "https://github.com/romaklym/assertify",
   "license": "MIT",
-  "keywords": ["browser", "login", "sessions", "automation", "playwright", "mcp"],
+  "keywords": [
+    "browser",
+    "login",
+    "sessions",
+    "automation",
+    "playwright",
+    "mcp"
+  ],
   "skills": "./skills/",
   "mcpServers": "./.mcp.json",
   "interface": {
@@ -18,7 +25,10 @@
     "longDescription": "Log in once in a real browser window. The session is saved encrypted on your computer, and Codex can then open that site as you: read pages, click, type, fill in forms, download files and take screenshots. Clicks that send, post, buy, delete or connect wait for your approval. Runs locally with uvx; needs uv installed.",
     "developerName": "Roman Klym",
     "category": "Productivity",
-    "capabilities": ["Read", "Write"],
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
     "websiteURL": "https://github.com/romaklym/assertify",
     "privacyPolicyURL": "https://github.com/romaklym/assertify/blob/main/PRIVACY.md",
     "composerIcon": "./.claude-plugin/icon.png",

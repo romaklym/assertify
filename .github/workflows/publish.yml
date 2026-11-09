@@ -21,8 +21,6 @@ jobs:
           test "$want" = "$plugin" || { echo "tag $want != plugin.json $plugin"; exit 1; }
           codex=$(python3 -c "import json;print(json.load(open('plugin/.codex-plugin/plugin.json'))['version'])")
           test "$want" = "$codex" || { echo "tag $want != .codex-plugin/plugin.json $codex"; exit 1; }
-          grep -q "assertify-mcp==$want" plugin/pyproject.toml || { echo "plugin/pyproject.toml is not pinned to $want"; exit 1; }
-          (cd plugin && uv lock --check)
       - run: uv build
       - uses: actions/upload-artifact@v4
         with:

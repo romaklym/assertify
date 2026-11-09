@@ -1,0 +1,33 @@
+# Assertify Cloud on Fly.io. See deploy/README.md.
+app = "assertify"
+primary_region = "iad"
+
+[build]
+  dockerfile = "deploy/Dockerfile"
+
+[env]
+  ASSERTIFY_CLOUD_URL = "https://assertify.co"
+  ASSERTIFY_CLOUD_DB = "/data/assertify-cloud.db"
+
+[mounts]
+  source = "assertify_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # Connected computers hold WebSockets and their state lives in memory, so keep one machine running.
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "30s"
+    method = "GET"
+    path = "/healthz"
+    timeout = "5s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

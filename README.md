@@ -98,16 +98,26 @@ Then add Assertify to your AI client with one command (no download or clone need
 | Claude Desktop (macOS) | `curl -fLo /tmp/assertify.mcpb https://github.com/romaklym/assertify/releases/latest/download/assertify.mcpb && open /tmp/assertify.mcpb` |
 | VS Code (Copilot) | `code --add-mcp '{"name":"assertify","command":"uvx","args":["--from","git+https://github.com/romaklym/assertify","assertify","serve"]}'` |
 
-**Or install the plugin**, which adds the server plus a skill that teaches the agent the login → browse → close flow:
+**Or install the plugin.** It connects to the hosted relay at `https://assertify.co/mcp` and adds a skill that teaches the agent the login → browse → close flow:
 
 | Client | Commands |
 |---|---|
 | Claude Code | `/plugin marketplace add romaklym/assertify`, then `/plugin install assertify@assertify` |
 | Codex | `codex plugin marketplace add romaklym/assertify`, then `codex plugin add assertify@assertify` (or open `/plugins` in Codex) |
+| claude.ai, ChatGPT, any client with remote MCP | Add a custom connector with the URL `https://assertify.co/mcp` |
+
+The relay reaches the browser on your own computer, so run the companion there and keep it running:
+
+```
+uvx assertify-mcp setup     # once: installs the browser
+uvx assertify-mcp connect   # links this computer to assertify.co
+```
+
+The first time an app connects, it shows a page on assertify.co with a code. Run `uvx assertify-mcp link CODE` and confirm the app's name. Your logins stay on your computer: assertify.co only passes tool calls and their results through and stores none of them. `uvx assertify-mcp unlink` revokes every linked app. See [PRIVACY.md](PRIVACY.md) and [deploy/README.md](deploy/README.md).
 
 Other clients are under [Connect your AI client](#-connect-your-ai-client). Restart the client afterwards. The first start takes a minute while it installs, and Assertify downloads the browser it needs on first use (or uses your installed Chrome or Edge).
 
-To pin a version, add a tag: `git+https://github.com/romaklym/assertify@v0.6.3`.
+To pin a version, add a tag: `git+https://github.com/romaklym/assertify@v0.7.0`.
 
 <details>
 <summary><b>Install from source instead</b></summary>

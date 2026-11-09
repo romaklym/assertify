@@ -1,6 +1,6 @@
 [project]
 name = "assertify-mcp"
-version = "0.6.3"
+version = "0.7.0"
 description = "Let AI agents use any website you're logged in to. Log in once; the session stays encrypted on your machine."
 readme = "README.md"
 license = "MIT"
@@ -21,7 +21,7 @@ dependencies = [
     "playwright>=1.51",
     "cryptography>=42",
     "keyring>=25",
-    "websockets>=13",
+    "websockets>=14",
     "pypdf>=5",
 ]
 

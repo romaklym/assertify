@@ -34,7 +34,7 @@ wheels = [
 
 [[package]]
 name = "assertify-mcp"
-version = "0.6.3"
+version = "0.7.0"
 source = { editable = "." }
 dependencies = [
     { name = "cryptography" },
@@ -59,7 +59,7 @@ requires-dist = [
     { name = "mcp", specifier = ">=2.0" },
     { name = "playwright", specifier = ">=1.51" },
     { name = "pypdf", specifier = ">=5" },
-    { name = "websockets", specifier = ">=13" },
+    { name = "websockets", specifier = ">=14" },
 ]
 
 [package.metadata.requires-dev]

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import sys
 import threading
 
@@ -80,6 +81,14 @@ def main() -> None:
     rl.add_argument("--port", type=int, default=8765)
     rl.add_argument("--public-url", help="The https:// address agents reach this relay at (e.g. a tunnel)")
     rl.add_argument("--new-token", action="store_true", help="Make a new secret (unpairs the phone)")
+    sub.add_parser("connect", help="Let AI apps linked through assertify.co use this computer's browser")
+    lk = sub.add_parser("link", help="Approve an AI app with the code from its Assertify sign-in page")
+    lk.add_argument("code")
+    lk.add_argument("--yes", action="store_true", help="Don't ask to confirm")
+    sub.add_parser("unlink", help="Revoke every AI app's access to this computer through assertify.co")
+    cl = sub.add_parser("cloud", help="Run the public Assertify Cloud server (for hosting assertify.co)")
+    cl.add_argument("--host", default="0.0.0.0")
+    cl.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8080")))
     args = p.parse_args()
     if args.cmd not in (None, "serve"):
         # Windows consoles may not be UTF-8; never crash on a ✓ or an emoji in a page title.
@@ -110,6 +119,22 @@ def main() -> None:
             from .relay import serve
 
             serve(args.host, args.port, args.public_url, args.new_token)
+        elif args.cmd == "connect":
+            from .connect import connect
+
+            sys.exit(connect())
+        elif args.cmd == "link":
+            from .connect import link
+
+            sys.exit(link(args.code, args.yes))
+        elif args.cmd == "unlink":
+            from .connect import unlink
+
+            sys.exit(unlink())
+        elif args.cmd == "cloud":
+            from .cloud import serve as serve_cloud
+
+            serve_cloud(args.host, args.port)
         elif args.cmd == "delete":
             print("Deleted." if Vault().delete(args.profile) else "No such profile.")
     except VaultError as e:

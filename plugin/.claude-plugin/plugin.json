@@ -1,8 +1,8 @@
 {
   "name": "assertify",
   "displayName": "Assertify",
-  "version": "0.6.3",
-  "description": "Use websites you're logged in to. Log in once in a real browser window; the session stays encrypted on your machine and Claude can then browse, read, click and type on that site as you, with send, post, buy and delete paused for your approval.",
+  "version": "0.7.0",
+  "description": "Use websites you're logged in to. Claude connects to assertify.co, which relays to the Assertify companion on your own computer: the browser and your encrypted logins never leave it. Claude can browse, read, click and type on those sites as you, with send, post, buy and delete paused for your approval.",
   "author": {
     "name": "Roman Klym",
     "url": "https://github.com/romaklym"
@@ -15,7 +15,6 @@
     "login",
     "sessions",
     "automation",
-    "playwright",
     "mcp"
   ],
   "documentationUrl": "https://github.com/romaklym/assertify#readme",

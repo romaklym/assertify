@@ -1,9 +1,10 @@
 # Privacy policy
 
-Last updated: 7 November 2026
+Last updated: 9 November 2026
 
-Assertify is open-source software that runs on your own computer. It has no account, no server and
-no telemetry. The author doesn't receive, collect or store any of your data.
+Assertify is open-source software that runs on your own computer. It has no accounts and no
+telemetry. The optional hosted relay at assertify.co, which lets Claude, ChatGPT and Codex reach your
+computer, is described below; it passes data through without storing it.
 
 ## What Assertify stores, and where
 
@@ -26,7 +27,28 @@ the whole folder.
 - **Software downloads:** installing Assertify downloads packages from PyPI, and Assertify may
   download Playwright's Chromium browser once if Chrome isn't installed.
 
-Assertify sends nothing to the author or to any other third party.
+Without the hosted relay, Assertify sends nothing to the author or to any other third party.
+
+## The hosted relay (assertify.co)
+
+When you add Assertify to an AI app through `https://assertify.co/mcp` and run
+`assertify connect`, the relay, run by the author, passes data between that app and your computer.
+
+- **Passed through, not stored:** tool calls from the AI app and their results (page outlines,
+  page text, screenshots, downloaded files the agent asked for). They're held in memory only while
+  a call is in flight and aren't logged or kept.
+- **Stored, to make sign-in work:** each AI app's registration (its name and redirect address), a
+  random ID for your computer with the name it reports (its hostname), the list of tools it offers,
+  when it last connected, and SHA-256 hashes of the access tokens and codes. Tokens expire (access
+  after 24 hours, refresh after 90 days) and are deleted then.
+- **Never sent to the relay:** your saved logins, cookies, site storage, passwords and the
+  encryption key. They stay on your computer.
+- **Server logs:** the hosting provider (Fly.io) and the relay record standard request logs (time,
+  path, status, IP address) for operating and securing the service, kept for at most 30 days.
+- **Removing your data:** `assertify unlink` deletes your computer's record and revokes every token
+  linked to it.
+
+The relay isn't used for advertising, isn't sold or shared, and isn't used to train models.
 
 ## Your passwords
 

@@ -60,7 +60,7 @@ mcp = MCPServer(
 )
 
 
-def tool(fn=None, *, read_only: bool = False, destructive: bool | None = None):
+def tool(fn=None, *, read_only: bool = False, destructive: bool = False, open_world: bool = True):
     """Register a tool; turn any failure into a readable error the agent can act on.
 
     The hints tell clients which tools only look (safe to auto-approve) and which can delete things.
@@ -82,7 +82,8 @@ def tool(fn=None, *, read_only: bool = False, destructive: bool | None = None):
         hints = ToolAnnotations(
             read_only_hint=read_only,
             destructive_hint=False if read_only else destructive,
-            open_world_hint=True,
+            idempotent_hint=read_only,
+            open_world_hint=open_world,
         )
         return mcp.tool(annotations=hints)(wrapper)
 
@@ -118,7 +119,7 @@ async def _after(sid: str, note: str) -> Result:
 # ---------- profiles / login ----------
 
 
-@tool(read_only=True)
+@tool(read_only=True, open_world=False)
 async def list_profiles(site: str | None = None) -> list[dict]:
     """List saved website logins: name, account (e.g. the email), site, allowed domains, read-only.
     A login is cookies plus the site's storage (localStorage, IndexedDB, sessionStorage); many apps
@@ -155,14 +156,14 @@ async def complete_login(profile: str | None = None) -> str:
     return await manager.complete_login(profile)
 
 
-@tool
+@tool(open_world=False)
 async def rename_profile(profile: str, new_name: str) -> str:
     """Rename a saved login, e.g. "google.com-1" -> "work"."""
     manager.vault.rename(manager.resolve(profile), new_name)
     return f"Renamed to {new_name!r}."
 
 
-@tool(destructive=True)
+@tool(destructive=True, open_world=False)
 async def delete_profile(profile: str) -> str:
     """Delete a saved login from disk."""
     return "Deleted." if manager.vault.delete(profile) else "No such profile."
@@ -298,7 +299,7 @@ async def back(session_id: str) -> Result:
     return await _after(session_id, "Went back")
 
 
-@tool
+@tool(destructive=True)
 async def click(
     session_id: str,
     ref: str | None = None,
@@ -320,7 +321,7 @@ async def click(
     return await _after(session_id, note)
 
 
-@tool
+@tool(destructive=True)
 async def type_text(
     session_id: str,
     text: str,
@@ -376,7 +377,7 @@ async def select_option(session_id: str, option: str, ref: str | None = None, la
     return await _after(session_id, f"Selected {option!r} in {ref}")
 
 
-@tool
+@tool(destructive=True)
 async def press_key(session_id: str, key: str, confirmed: bool = False) -> Result:
     """Press a key on the page, e.g. "Enter", "Escape", "Tab", "Control+A".
 
@@ -395,14 +396,14 @@ async def dismiss_popup(session_id: str) -> Result:
     return await _after(session_id, note)
 
 
-@tool
+@tool(read_only=True)
 async def scroll(session_id: str, direction: str = "down", amount: int = 800) -> Result:
     """Scroll the page "up" or "down" by `amount` pixels (lazy-loaded content appears in the next snapshot)."""
     note = await manager.scroll(manager.get(session_id), direction, amount)
     return await _after(session_id, note)
 
 
-@tool
+@tool(read_only=True)
 async def wait_for(session_id: str, text: str | None = None, seconds: float = 2) -> Result:
     """Wait until `text` appears on the page (up to 15s), or just wait `seconds`."""
     page = manager.get(session_id).active
@@ -467,7 +468,7 @@ async def screenshot(session_id: str, ref: str | None = None, full_page: bool = 
     return [Image(data=data, format="jpeg"), f"Screenshot of {page.url}\nSaved to: {path}"]
 
 
-@tool
+@tool(open_world=False)
 async def set_screenshots(session_id: str, enabled: bool) -> str:
     """Turn per-step screenshots on or off for a session (each action then returns a screenshot)."""
     manager.get(session_id).screenshots = enabled

@@ -9,7 +9,7 @@
     {
       "name": "assertify",
       "source": "./plugin",
-      "description": "Use websites you're logged in to. Sessions stay encrypted on your machine."
+      "description": "Use websites you're logged in to. The browser and your encrypted logins stay on your computer."
     }
   ]
 }
